@@ -71,11 +71,11 @@ main (void) {
 	char **argv;
 
 	/* Clear BSS and get machine's RAM size. */
-	bss_init ();
+	bss_init (); //0으로 메모리 할당
 
 	/* Break command line into arguments and parse options. */
-	argv = read_command_line ();
-	argv = parse_options (argv);
+	argv = read_command_line (); //커맨드라인 읽어들이기 Line by
+	argv = parse_options (argv); //커맨드 옵션 읽어들이기
 
 	/* Initialize ourselves as a thread so we can use locks,
 	   then enable console locking. */
@@ -83,7 +83,7 @@ main (void) {
 	console_init ();
 
 	/* Initialize memory system. */
-	mem_end = palloc_init ();
+	mem_end = palloc_init (); //malloc 유사
 	malloc_init ();
 	paging_init (mem_end);
 

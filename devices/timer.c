@@ -13,7 +13,7 @@
 #if TIMER_FREQ < 19
 #error 8254 timer requires TIMER_FREQ >= 19
 #endif
-#if TIMER_FREQ > 1000
+#if TIMER_FREQ > 1000 // TIMER_FREQ는 타이머가 초당 몇 번 인터럽트를 발생시킬지를 정의
 #error TIMER_FREQ <= 1000 recommended
 #endif
 
@@ -120,7 +120,7 @@ void
 timer_print_stats (void) {
 	printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
