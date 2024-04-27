@@ -40,6 +40,13 @@ static struct lock tid_lock;
 /* Thread destruction requests */
 static struct list destruction_req;
 
+/* Block - WakeUP 구조 만들기*/
+//Block된 Thread들 저장
+static struct list sleep_list;
+
+// sleep_list에서 대기중인 스레드들의 wakeup_tick값 중 최소값을 저장
+static int64_t next_tick_to_awake;
+
 /* Statistics. */
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
@@ -109,6 +116,12 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+
+    //init 레벨에서 초기화 할까
+    list_init(&sleep_list);
+
+    //tick 비교해야하니까 젤 큰값
+    next_tick_to_awake=INT64_MAX;
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
