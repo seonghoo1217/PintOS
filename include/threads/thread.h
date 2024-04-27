@@ -94,6 +94,7 @@ struct thread {
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
+    // 깨어나야할 tick 저장 (wakeup_tick)
     int64_t wakeup_tick;
 
 #ifdef USERPROG

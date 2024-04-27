@@ -24,6 +24,9 @@
    Do not modify this value. */
 #define THREAD_BASIC 0xd42df210
 
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+
+
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -269,7 +272,7 @@ thread_name (void) {
    See the big comment at the top of thread.h for details. */
 struct thread *
 thread_current (void) {
-	struct thread *t = running_thread ();
+	struct thread *t = running_thread (); //현재 실행 중인 스레드의 포인터를 얻고, 그 값을 변수 t에 저장
 
 	/* Make sure T is really a thread.
 	   If either of these assertions fire, then your thread may
@@ -600,4 +603,53 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+
+// ===================================== Semaphore Block - Wake-Up =====================================
+void thread_sleep(int64_t ticks){
+    struct thread *running_t = thread_current();
+    ASSERT(!intr_context());
+    old_level = intr_disable();
+
+    running_t->wakeup_tick = ticks;
+    if (running_t !=idle_thread){
+        list_push_back(&sleep_list, &running_t->elem);//list랑 어떤 요소 맨뒤에 넣을건지
+    }
+    update_next_tick_to_awake(ticks);
+    do_schedule(THREAD_BLOCKED);
+    intr_set_level(old_level);
+}
+
+// 1. sleep_list의 스레드를 모두 순회하면서 스레드의 wakeup_tick(일어나야할 시각) 이 ticks보다 작으면 깨워야한다.
+// 2. if 1번의 조건이 수행될 경우, next_tick_to_awake 변경
+// 현재 ticks에서 일어나지 않은 thread 중에서 가장 작은 wakeup_tick이 next_tick_to_awake
+void thread_awake(int64_t ticks) {
+    next_tick_to_awake = INT64_MAX;
+    struct list_elem *e= list_begin(&sleep_list);
+    struct thread *t;
+
+    for (e ; e != list_end(&sleep_list);)
+    {
+        t = list_entry(e, struct thread, elem);
+        if (t->wakeup_tick <= ticks)
+        {
+            e = list_remove(&t->elem);
+            thread_unblock(t);
+        }
+        else
+        {
+            update_next_tick_to_awake(t->wakeup_tick);
+            e = list_next(e);
+        }
+    }
+}
+
+void update_next_tick_to_awake(int64_t ticks)
+{
+    next_tick_to_awake = MIN(next_tick_to_awake, ticks);
+}
+
+int64_t get_next_tick_to_awake(void)
+{
+    return next_tick_to_awake;
 }
