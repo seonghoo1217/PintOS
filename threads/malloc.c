@@ -74,8 +74,8 @@ malloc_init (void) {
 		ASSERT (desc_cnt <= sizeof descs / sizeof *descs);
 		d->block_size = block_size;
 		d->blocks_per_arena = (PGSIZE - sizeof (struct arena)) / block_size;
-		list_init (&d->free_list);
-		lock_init (&d->lock);
+		list_init (&d->free_list);				// free_list 에 넣고
+		lock_init (&d->lock);					// 락을 건다
 	}
 }
 

@@ -79,6 +79,42 @@ static tid_t allocate_tid (void);
 // setup temporal gdt first.
 static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
 
+
+/* blocked 상태가 되고 sleep_list 끝으로 삽입 */
+void thread_sleep(int64_t ticks){
+	struct thread *curr;
+	curr = thread_current();									// 현재 실행중인 스레드 포인터
+
+	// ASSERT(!intr_context());									// 내부 인터럽트인지 확인
+
+	enum intr_level old_level;
+	old_level = intr_disable();									// 인터럽트 비활성화
+
+	if(curr != idle_thread){										// idle(유휴) 스레드가 아니면
+		curr->wake_up = ticks;										// 현재 스레드의 일어날 시간에 ticks를 저장
+		// update_next_tick_to_awake(curr->wake_up = ticks);		// 인자값으로 받은 ticks를 스레드의 wake_up에 저장 (만약 최소값이면 next_tick_to_awake에 저장)
+		list_push_back(&sleep_list, &curr->elem);					// 현재 스레드를 sleep_list 가장 끝에 삽입
+		thread_block();												// 스레드를 블락 상태로 변환
+	}
+	intr_set_level(old_level);										// 인터럽트 재가동
+}
+
+void thread_awake(int64_t ticks){
+	struct list_elem *curr;
+	curr = list_begin(&sleep_list);				// sleep_list의 가장 첫 번째 요소의 정보를 가져옴
+
+	while(curr != list_end(&sleep_list)){
+		struct thread *t = list_entry(curr, struct thread, elem);
+		if(t->wake_up < ticks){
+			curr = list_remove(curr);
+			thread_unblock(t);										// 현재 스레드를 ready 상태로 바꿔주고 ready_list 끝에 삽입
+		}
+		else{
+			curr = list_next(curr);									// 아니면 다음 스레드를 확인
+		}
+	}
+}
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -94,7 +130,7 @@ static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
    finishes. */
 void
 thread_init (void) {
-	ASSERT (intr_get_level () == INTR_OFF);
+	ASSERT (intr_get_level () == INTR_OFF);			// 현재 인터럽트가 비활성화가 아니면 에러 발생
 
 	/* Reload the temporal gdt for the kernel
 	 * This gdt does not include the user context.
@@ -103,18 +139,20 @@ thread_init (void) {
 		.size = sizeof (gdt) - 1,
 		.address = (uint64_t) gdt
 	};
-	lgdt (&gdt_ds);
+	lgdt (&gdt_ds);		// 주어진 struct desc_ptr에 있는 GDT를 시스템의 GDT 레지스터로 로드한다.
 
 	/* Init the globla thread context */
-	lock_init (&tid_lock);
+	lock_init (&tid_lock);					// 락 초기화
 	list_init (&ready_list);
+	// [추가부분] sleep_list 초기화 추가
+	list_init (&sleep_list);
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
 	init_thread (initial_thread, "main", PRI_DEFAULT);
 	initial_thread->status = THREAD_RUNNING;
-	initial_thread->tid = allocate_tid ();
+	initial_thread->tid = allocate_tid ();					// 원자성 부여해서 스레드 생성할때 1씩 증가 (스레드 id)
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -122,15 +160,15 @@ thread_init (void) {
 void
 thread_start (void) {
 	/* Create the idle thread. */
-	struct semaphore idle_started;
-	sema_init (&idle_started, 0);
+	struct semaphore idle_started;							// 유휴 스레드 (클럭의 주기를 맞추기 위해)
+	sema_init (&idle_started, 0);	
 	thread_create ("idle", PRI_MIN, idle, &idle_started);
 
 	/* Start preemptive thread scheduling. */
 	intr_enable ();
 
 	/* Wait for the idle thread to initialize idle_thread. */
-	sema_down (&idle_started);
+	sema_down (&idle_started);								// 자원을 사용한다
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -218,7 +256,7 @@ thread_create (const char *name, int priority,
    primitives in synch.h. */
 void
 thread_block (void) {
-	ASSERT (!intr_context ());
+	ASSERT (!intr_context ());						// 내부 인터럽트만 제어하기 위해
 	ASSERT (intr_get_level () == INTR_OFF);
 	thread_current ()->status = THREAD_BLOCKED;
 	schedule ();
@@ -408,7 +446,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
-	t->magic = THREAD_MAGIC;
+	t->magic = THREAD_MAGIC;			// 스레드들이 쌓여있는 맨 끝 부분 (영역 확장할 때 쓸일 듯)
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -529,12 +567,12 @@ static void
 do_schedule(int status) {
 	ASSERT (intr_get_level () == INTR_OFF);
 	ASSERT (thread_current()->status == THREAD_RUNNING);
-	while (!list_empty (&destruction_req)) {
+	while (!list_empty (&destruction_req)) {										// 파괴 리스트에 있는 스레드 메모리 해제
 		struct thread *victim =
 			list_entry (list_pop_front (&destruction_req), struct thread, elem);
-		palloc_free_page(victim);
+		palloc_free_page(victim);													// 스레드의 페이지 메모리 해제
 	}
-	thread_current ()->status = status;
+	thread_current ()->status = status;												// 현재 스레드의 상태를 인자값으로 받은 상태로 변환
 	schedule ();
 }
 
@@ -550,7 +588,7 @@ schedule (void) {
 	next->status = THREAD_RUNNING;
 
 	/* Start new time slice. */
-	thread_ticks = 0;
+	thread_ticks = 0;							// 새로 running 상태가 된 스레드는 4ticks후 sleep을 해야하기 때문에
 
 #ifdef USERPROG
 	/* Activate the new address space. */

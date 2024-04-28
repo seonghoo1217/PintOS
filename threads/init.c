@@ -83,17 +83,17 @@ main (void) {
 	console_init ();
 
 	/* Initialize memory system. */
-	mem_end = palloc_init ();
-	malloc_init ();
+	mem_end = palloc_init ();				// 커널 영역에서 메모리 영역을 할당
+	malloc_init ();							// 스레드를 생성해서 메모리 할당해준다
 	paging_init (mem_end);
 
-#ifdef USERPROG
+#ifdef USERPROG								// USERPROG 구조체를 사용하면 조건문에 걸린다
 	tss_init ();
 	gdt_init ();
 #endif
 
 	/* Initialize interrupt handlers. */
-	intr_init ();
+	intr_init ();							// 인터럽트 초기화
 	timer_init ();
 	kbd_init ();
 	input_init ();
@@ -144,7 +144,7 @@ bss_init (void) {
  * and then sets up the CPU to use the new page directory.
  * Points base_pml4 to the pml4 it creates. */
 static void
-paging_init (uint64_t mem_end) {
+paging_init (uint64_t mem_end) {						// 페이지 크기 최대 4KB
 	uint64_t *pml4, *pte;
 	int perm;
 	pml4 = base_pml4 = palloc_get_page (PAL_ASSERT | PAL_ZERO);

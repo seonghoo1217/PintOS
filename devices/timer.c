@@ -36,7 +36,7 @@ void
 timer_init (void) {
 	/* 8254 input frequency divided by TIMER_FREQ, rounded to
 	   nearest. */
-	uint16_t count = (1193180 + TIMER_FREQ / 2) / TIMER_FREQ;
+	uint16_t count = (1193180 + TIMER_FREQ / 2) / TIMER_FREQ;				// 클럭 당 수
 
 	outb (0x43, 0x34);    /* CW: counter 0, LSB then MSB, mode 2, binary. */
 	outb (0x40, count & 0xff);
@@ -56,8 +56,7 @@ timer_calibrate (void) {
 	/* Approximate loops_per_tick as the largest power-of-two
 	   still less than one timer tick. */
 	loops_per_tick = 1u << 10;
-	while (!too_many_loops (loops_per_tick << 1)) {
-		loops_per_tick <<= 1;
+	while (!too_many_loops (loops_per_tick << 1)) { 
 		ASSERT (loops_per_tick != 0);
 	}
 
@@ -76,7 +75,7 @@ timer_ticks (void) {
 	enum intr_level old_level = intr_disable ();
 	int64_t t = ticks;
 	intr_set_level (old_level);
-	barrier ();
+	barrier ();									// 인터럽트 순서 보장 역할
 	return t;
 }
 
@@ -90,11 +89,11 @@ timer_elapsed (int64_t then) {
 /* Suspends execution for approximately TICKS timer ticks. */
 void
 timer_sleep (int64_t ticks) {
-	int64_t start = timer_ticks ();
-
-	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
-		thread_yield ();
+	int64_t start = timer_ticks ();					// 현재까지의 틱 수 반환
+	// ASSERT (intr_get_level () == INTR_ON);			// 인터럽트가 활성화되어있는지 확인
+	
+	/* sleep, wakeup 방식 수정 */
+	thread_sleep(start + ticks);				// start부터 주어진 ticks만큼 재운다
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -126,6 +125,9 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
+
+	/* [추가부분] project 1 */
+	thread_awake(ticks);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

@@ -1,0 +1,11 @@
+FAIL
+Kernel panic in run: PANIC at ../../tests/threads/tests.c:93 in fail(): test failed
+Call stack: 0x8004213c85 0x800421766f 0x800421aa3d 0x8004217486 0x8004206677 0x80042067e1 0x800420612b
+Translation of call stack:
+0x0000008004213c85: debug_panic (lib/kernel/debug.c:32)
+0x000000800421766f: pass (tests/threads/tests.c:99)
+0x000000800421aa3d: test_mlfqs_load_1 (tests/threads/mlfqs/mlfqs-load-1.c:31)
+0x0000008004217486: run_test (tests/threads/tests.c:57)
+0x0000008004206677: run_task (threads/init.c:252)
+0x00000080042067e1: run_actions (threads/init.c:297)
+0x000000800420612b: main (threads/init.c:125)

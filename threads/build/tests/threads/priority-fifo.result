@@ -1,0 +1,5 @@
+FAIL
+Kernel panic in run: PANIC at %s:%d in %s(): Unexpected interrupt
+Call stack:
+Translation of call stack:
+usage: /home/ubuntu/PintOS/utils/backtrace addr ...
