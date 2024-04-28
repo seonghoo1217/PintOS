@@ -83,17 +83,17 @@ main (void) {
 	console_init ();
 
 	/* Initialize memory system. */
-	mem_end = palloc_init ();
-	malloc_init ();
-	paging_init (mem_end);
+	mem_end = palloc_init (); // 커널환경에서 쓰는 말록 -> 쓰레드들이 쓸 공간을 만들어주는 것
+	malloc_init (); 		  // 만들어 놓은 쓰레드공간에 쓰레드를 할당하기 위함
+	paging_init (mem_end);	  // 한 쓰레드에 페이징 될 수 있는 영역이  최대 4Kb (페이징 : 정해진 크기로 분할)
 
-#ifdef USERPROG
+#ifdef USERPROG // 이 구조체를 사용한다면 if 문을 실행해라
 	tss_init ();
 	gdt_init ();
 #endif
 
 	/* Initialize interrupt handlers. */
-	intr_init ();
+	intr_init (); // 인터럽트 init
 	timer_init ();
 	kbd_init ();
 	input_init ();
@@ -143,6 +143,12 @@ bss_init (void) {
 /* Populates the page table with the kernel virtual mapping,
  * and then sets up the CPU to use the new page directory.
  * Points base_pml4 to the pml4 it creates. */
+
+/* 
+   pml4 = Page Map Level 4(페이지 테이블 중 가장 상위 계층)
+   가상 주소공간을 물리메모리 공간으로 매핑하는데 사용 = 프로세스가 실제 메모리에 액세스 할 수 있게함
+*/
+
 static void
 paging_init (uint64_t mem_end) {
 	uint64_t *pml4, *pte;

@@ -28,6 +28,9 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* Project 1-1 새롭게 추가된 함수 */
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -38,7 +41,7 @@ static struct thread *initial_thread;
 static struct lock tid_lock;
 
 /* Thread destruction requests */
-static struct list destruction_req;
+static struct list destruction_req; // 스레드 종료 시점에 자원할당 해제를 위해 대기하는 리스트
 
 /* Statistics. */
 static long long idle_ticks;    /* # of timer ticks spent idle. */
@@ -62,6 +65,9 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
+void thread_sleep(int64_t ticks); // 새롭게 추가 04/27 23:05
+void thread_awake(int64_t ticks); // 새롭게 추가 04/27 23:05
+
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -103,18 +109,19 @@ thread_init (void) {
 		.size = sizeof (gdt) - 1,
 		.address = (uint64_t) gdt
 	};
-	lgdt (&gdt_ds);
+	lgdt (&gdt_ds); // 쓰레드가 할당될 공간에 대한 구조체
 
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
-	list_init (&destruction_req);
+	list_init (&destruction_req); // readylist의 복사본
+	list_init (&sleep_list); // project 1-1 추가
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
 	init_thread (initial_thread, "main", PRI_DEFAULT);
 	initial_thread->status = THREAD_RUNNING;
-	initial_thread->tid = allocate_tid ();
+	initial_thread->tid = allocate_tid (); // tid = tread ID
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -130,7 +137,7 @@ thread_start (void) {
 	intr_enable ();
 
 	/* Wait for the idle thread to initialize idle_thread. */
-	sema_down (&idle_started);
+	sema_down (&idle_started); // 자원을 사용하면 자원갯수를 감소시킨다, 유휴는 디폴트로 사용해야하므로 무조건 -1
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -302,9 +309,9 @@ thread_yield (void) {
 	ASSERT (!intr_context ());
 
 	old_level = intr_disable ();
-	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
-	do_schedule (THREAD_READY);
+	if (curr != idle_thread) // 현재 쓰레드가 유휴 쓰레드가 아니라면
+		list_push_back (&ready_list, &curr->elem); // ready_list 끝에 추가
+	do_schedule (THREAD_READY); // 스케쥴러에게 현재 쓰레드 : 준비상태, 다음쓰레드 실행해! 명령
 	intr_set_level (old_level);
 }
 
@@ -408,7 +415,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
-	t->magic = THREAD_MAGIC;
+	t->magic = THREAD_MAGIC; // 쓰레드들이 쌓여있는 스택영역의 가장 마지막 지점을 가리킴 
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -421,7 +428,7 @@ next_thread_to_run (void) {
 	if (list_empty (&ready_list))
 		return idle_thread;
 	else
-		return list_entry (list_pop_front (&ready_list), struct thread, elem);
+		return list_entry(list_pop_front (&ready_list), struct thread, elem);
 }
 
 /* Use iretq to launch the thread */
@@ -543,14 +550,14 @@ schedule (void) {
 	struct thread *curr = running_thread ();
 	struct thread *next = next_thread_to_run ();
 
-	ASSERT (intr_get_level () == INTR_OFF);
-	ASSERT (curr->status != THREAD_RUNNING);
-	ASSERT (is_thread (next));
+	ASSERT (intr_get_level () == INTR_OFF);		// 조건1
+	ASSERT (curr->status != THREAD_RUNNING); 	// 조건2
+	ASSERT (is_thread (next)); 					// 조건3
 	/* Mark us as running. */
 	next->status = THREAD_RUNNING;
 
 	/* Start new time slice. */
-	thread_ticks = 0;
+	thread_ticks = 0;							// 새로운 Time_slice(4 ticks)를 부여하여 4 tick 이 지나면 sleep함수를 호출해야함
 
 #ifdef USERPROG
 	/* Activate the new address space. */
@@ -587,4 +594,44 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+
+/* project 1-1 
+	1. thread_sleep 함수 구현
+		sleep 해줄 스레드를 sleep list에 추가하고 status를 TREAD_BLOCKED로 변경
+		이때 IDLE 쓰레드를 sleep시키면 CPU 실행 상태를 유지 할 수 없어 종료되므로 예외처리
+*/
+void thread_sleep(int64_t ticks){
+	struct thread *t = thread_current();
+	enum intr_level old_level;
+
+	old_level = intr_disable();
+	if (t != idle_thread){
+		t->wake_up_time = ticks;
+		list_push_back(&sleep_list, &t -> elem);
+		do_schedule(THREAD_BLOCKED);
+		// thread_block();
+	}
+	// intr_set_level(old_level); // 인터럽트 활성화
+	old_level = intr_enable();
+}
+
+/* 
+	1. sleep_list에서 스레드들이 일어날 시간이 되면 ready_list로 옮긴다
+	2. 현재 틱보다 작거나 같은 wakeup-tick가진 스레드는 모두 ready-list로 이동
+	3. ready에 넣고, 상태 THREAD_READY로 변경	
+*/
+void thread_awake(int64_t ticks){
+	struct list_elem *first = list_begin(&sleep_list); // sleep_list 상에서 첫번째 원소를 가리키는 포인터를 t에 담는다, list_elem : 포인터와 데이터정보 모두 담음
+
+	while ( first != list_end(&sleep_list)){
+		struct thread *t = list_entry(first, struct thread, elem); // list_entry : 연결 리스트의 노드 포인터를 해당 노트가 속한 구조체의 포인터로 변환
+		if (t->wake_up_time < ticks){
+			first = list_remove(first);
+			thread_unblock(t);
+		}
+		else{
+			first = list_next(first);
+		}
+	}
 }

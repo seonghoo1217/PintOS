@@ -46,7 +46,7 @@ sema_init (struct semaphore *sema, unsigned value) {
 	ASSERT (sema != NULL);
 
 	sema->value = value;
-	list_init (&sema->waiters);
+	list_init (&sema->waiters); // waiters -> sleep_list
 }
 
 /* Down or "P" operation on a semaphore.  Waits for SEMA's value

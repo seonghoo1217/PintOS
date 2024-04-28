@@ -18,7 +18,7 @@
 #endif
 
 /* Number of timer ticks since OS booted. */
-static int64_t ticks;
+static int64_t ticks; 
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
@@ -32,6 +32,7 @@ static void real_time_sleep (int64_t num, int32_t denom);
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
    corresponding interrupt. */
+/* 이 함수는 시스템의 타이머를 설정하고 인터럽트를 등록하는 역할 */
 void
 timer_init (void) {
 	/* 8254 input frequency divided by TIMER_FREQ, rounded to
@@ -45,7 +46,7 @@ timer_init (void) {
 	intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 }
 
-/* Calibrates loops_per_tick, used to implement brief delays. */
+/* 루프당틱(loop_per_tick)을 보정하여 간단한 지연을 구현 */
 void
 timer_calibrate (void) {
 	unsigned high_bit, test_bit;
@@ -53,10 +54,10 @@ timer_calibrate (void) {
 	ASSERT (intr_get_level () == INTR_ON);
 	printf ("Calibrating timer...  ");
 
-	/* Approximate loops_per_tick as the largest power-of-two
-	   still less than one timer tick. */
-	loops_per_tick = 1u << 10;
-	while (!too_many_loops (loops_per_tick << 1)) {
+	/* One timer tick보다 작으면서 가장 큰 2의 거듭제곱인 값으로 loops_per_tick을 대략적으로 설정 */
+	loops_per_tick = 1u << 10; // loops_per_tick 변수를 2의 10제곱 (즉, 1024)으로 설정
+							   // 1u << 10은 1을 왼쪽으로 10비트 이동하여 1024를 나타냄
+	while (!too_many_loops (loops_per_tick << 1)) { // loops_per_tick을 두 배로 증가시키고, 이를 too_many_loops 함수에 전달하여 해당 함수가 반환하는 값이 false일 때까지 반복
 		loops_per_tick <<= 1;
 		ASSERT (loops_per_tick != 0);
 	}
@@ -67,34 +68,34 @@ timer_calibrate (void) {
 		if (!too_many_loops (high_bit | test_bit))
 			loops_per_tick |= test_bit;
 
-	printf ("%'"PRIu64" loops/s.\n", (uint64_t) loops_per_tick * TIMER_FREQ);
+	printf ("%'"PRIu64" loops/s.\n", (uint64_t) loops_per_tick * TIMER_FREQ); // loops_per_tick * TIMER_FREQ : 초당 반복 횟수
 }
 
-/* Returns the number of timer ticks since the OS booted. */
+/* 운영 체제 부팅 이후에 발생한 타이머 틱의 수를 반환하는 함수나 변수에 대한 설명 */
 int64_t
 timer_ticks (void) {
-	enum intr_level old_level = intr_disable ();
-	int64_t t = ticks;
-	intr_set_level (old_level);
+	enum intr_level old_level = intr_disable (); // 인터럽트 레벨을 저장하고, 인터럽트를 비활성
+	int64_t t = ticks;							 // 전역변수 ticks의 값(OS가 부팅되고서 흐르는 틱)을 가져와 변수 t에 저장
+	intr_set_level (old_level);					 // 인터럽트 레벨을 복원 -> 인터럽트 활성화
 	barrier ();
-	return t;
+	return t;									 // 저장한 타이머 틱 수 반환
 }
 
-/* Returns the number of timer ticks elapsed since THEN, which
-   should be a value once returned by timer_ticks(). */
+/* 이 함수는 timer_ticks() 함수를 통해 얻은 시간을 기준으로 현재까지 경과한 시간을 계산하여 반환 */
 int64_t
 timer_elapsed (int64_t then) {
 	return timer_ticks () - then;
 }
 
-/* Suspends execution for approximately TICKS timer ticks. */
+/* timer_sleep 함수는 주어진 타이머 틱 수 동안 실행을 중지하고, 이 기간 동안 다른 스레드가 실행될 수 있도록 함 */
 void
 timer_sleep (int64_t ticks) {
-	int64_t start = timer_ticks ();
+	int64_t start = timer_ticks (); // timer_ticks() 함수를 사용하여 현재 타이머 틱 수를 가져와 초기화
 
-	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
-		thread_yield ();
+	// ASSERT (intr_get_level () == INTR_ON);
+	// while (timer_elapsed (start) < ticks)
+	// 	thread_yield (); // 다른 스레드가 실행될 기회를 줍니다
+	thread_sleep(start + ticks);// 새롭게 추가
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -126,10 +127,11 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
+	thread_awake(ticks); // 새롭게 추가 
 }
 
-/* Returns true if LOOPS iterations waits for more than one timer
-   tick, otherwise false. */
+/* 이 함수는 LOOPS 반복이 하나의 타이머 틱보다 오래 걸리는지 여부를 확인하고, 
+   그렇다면 true를 반환하고, 그렇지 않으면 false를 반환 */
 static bool
 too_many_loops (unsigned loops) {
 	/* Wait for a timer tick. */
@@ -159,7 +161,7 @@ busy_wait (int64_t loops) {
 		barrier ();
 }
 
-/* Sleep for approximately NUM/DENOM seconds. */
+/* 이 함수는 대략적으로 주어진 시간(초)만큼 실행을 중지하는 역할 */
 static void
 real_time_sleep (int64_t num, int32_t denom) {
 	/* Convert NUM/DENOM seconds into timer ticks, rounding down.
