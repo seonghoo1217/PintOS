@@ -144,7 +144,7 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);					// 락 초기화
 	list_init (&ready_list);
-	// [추가부분] sleep_list 초기화 추가
+	// [추가] sleep_list 초기화 추가
 	list_init (&sleep_list);
 	list_init (&destruction_req);
 

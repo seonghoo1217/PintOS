@@ -57,6 +57,7 @@ timer_calibrate (void) {
 	   still less than one timer tick. */
 	loops_per_tick = 1u << 10;
 	while (!too_many_loops (loops_per_tick << 1)) { 
+		loops_per_tick <<= 1;
 		ASSERT (loops_per_tick != 0);
 	}
 
@@ -92,6 +93,7 @@ timer_sleep (int64_t ticks) {
 	int64_t start = timer_ticks ();					// 현재까지의 틱 수 반환
 	// ASSERT (intr_get_level () == INTR_ON);			// 인터럽트가 활성화되어있는지 확인
 	
+	/* [추가] project 1 - alarm_clock */
 	/* sleep, wakeup 방식 수정 */
 	thread_sleep(start + ticks);				// start부터 주어진 ticks만큼 재운다
 }
@@ -126,7 +128,7 @@ timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
 
-	/* [추가부분] project 1 */
+	/* [추가] project 1 - alarm_clock */
 	thread_awake(ticks);
 }
 

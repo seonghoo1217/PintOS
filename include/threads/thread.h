@@ -144,7 +144,7 @@ int thread_get_load_avg (void);
 
 void do_iret (struct intr_frame *tf);
 
-/* [추가부분] 개선된 timer_sleep을 위한 sleep_list 구조체 */
+/* [추가] 개선된 timer_sleep을 위한 sleep_list 구조체 */
 static struct list sleep_list;
 
 // [추가 함수]
