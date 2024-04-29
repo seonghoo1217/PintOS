@@ -13,7 +13,7 @@
 #if TIMER_FREQ < 19
 #error 8254 timer requires TIMER_FREQ >= 19
 #endif
-#if TIMER_FREQ > 1000
+#if TIMER_FREQ > 1000 // TIMER_FREQ는 타이머가 초당 몇 번 인터럽트를 발생시킬지를 정의
 #error TIMER_FREQ <= 1000 recommended
 #endif
 
@@ -93,8 +93,10 @@ timer_sleep (int64_t ticks) {
 	int64_t start = timer_ticks ();
 
 	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
-		thread_yield ();
+	/*while (timer_elapsed (start) < ticks)
+		thread_yield ();*/
+    // 기존 코드:특정 시간(start)로부터 일정 tick이 지나기 전에는 thread를 활성화시키지 않는다.(thread_yield())
+    thread_sleep(start+ticks); //스레드를 현재시간(start)으로부터 몇 tick 뒤에(ticks) 깨어나게 하고 싶은지 설정
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -120,12 +122,20 @@ void
 timer_print_stats (void) {
 	printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
+
+    int64_t next_tick;
+    next_tick = get_next_tick_to_awake();
+
+    if (ticks >= next_tick)
+    {
+        thread_awake(ticks); // 현재 ticks보다 작은 wakeup_tick이 있는지 판단
+    }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
