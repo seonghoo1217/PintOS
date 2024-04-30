@@ -12,10 +12,10 @@
 
 /* States in a thread's life cycle. */
 enum thread_status {
-	THREAD_RUNNING,     /* Running thread. */
-	THREAD_READY,       /* Not running but ready to run. */
-	THREAD_BLOCKED,     /* Waiting for an event to trigger. */
-	THREAD_DYING        /* About to be destroyed. */
+    THREAD_RUNNING,     /* Running thread. */
+    THREAD_READY,       /* Not running but ready to run. */
+    THREAD_BLOCKED,     /* Waiting for an event to trigger. */
+    THREAD_DYING        /* About to be destroyed. */
 };
 
 /* Thread identifier type.
@@ -27,6 +27,12 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
+
+
+/* --- project 2: system call --- */
+
+#define FDT_PAGES 3
+#define FDCOUNT_LIMIT FDT_PAGES *(1<<9) // limit fdidx
 
 /* A kernel thread or user process.
  *
@@ -85,30 +91,49 @@ typedef int tid_t;
  * only because they are mutually exclusive: only a thread in the
  * ready state is on the run queue, whereas only a thread in the
  * blocked state is on a semaphore wait list. */
-struct thread {
-	/* Owned by thread.c. */
-	tid_t tid;                          /* Thread identifier. */
-	enum thread_status status;          /* Thread state. */
-	char name[16];                      /* Name (for debugging purposes). */
-	int priority;                       /* Priority. */
+struct thread { // 이 struct thread 자체가 프로세스 디스크립터
+    /* Owned by thread.c. */
+    tid_t tid;                          /* Thread identifier. */
+    enum thread_status status;          /* Thread state. */
+    char name[16];                      /* Name (for debugging purposes). */
+    int priority;                       /* Priority. */
+    /*---Project 1.4 Priority donation ---*/
+    int init_priority; // thread의 priority는 donation에 의해 매번 바뀔 수 있음. 그러니 맨 처음에 할당받은 priority를 기억해둬야!
+    struct lock *wait_on_lock; // 해당 스레드가 대기하고 있는 lock 자료구조 주소 저장: thread가 원하는 lock을 이미 다른 thread가 점유하고 있으면 lock의 주소를 저장한다.
+    struct list donations; // multiple donation 고려하기 위해 사용: A thread가 B thread에 의해 priority가 변경됐다면 A thread의 list donations에 B 스레드를 기억해놓는다.
+    struct list_elem donation_elem; // multiple donation 고려하기 위해 사용: B thread는 A thread의 기부자 목록에 자신 이름 새겨놓아야! 이를 donation_elem!
 
-	/* Shared between thread.c and synch.c. */
-	struct list_elem elem;              /* List element. */
-    // 깨어나야할 tick 저장 (wakeup_tick)
+    /* Shared between thread.c and synch.c. & list.c도! */
+    struct list_elem elem;              /* List element. */
+
+    /*---Project 1.1---*/
+    /* ---깨어나야 할 tick 저장--- */
     int64_t wakeup_tick;
 
 #ifdef USERPROG
-	/* Owned by userprog/process.c. */
+    /* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
+	/*---Project 2: Process Priority---*/
+
 #endif
 #ifdef VM
-	/* Table for whole virtual memory owned by thread. */
+    /* Table for whole virtual memory owned by thread. */
 	struct supplemental_page_table spt;
 #endif
 
-	/* Owned by thread.c. */
-	struct intr_frame tf;               /* Information for switching */
-	unsigned magic;                     /* Detects stack overflow. */
+    /* Owned by thread.c. */
+    struct intr_frame tf;               /* Information for switching */
+    unsigned magic;                     /* Detects stack overflow. */
+
+    /* --- Project2: User programs - system call --- */
+    int exit_status; // _exit(), _wait() 구현 때 사용
+    struct file **file_descriptor_table; //FDT
+    int fdidx; // fd index
+
+    struct intr_frame parent_if; // _fork() 구현 때 사용, __do_fork() 함수
+    struct list child_list; // _wait() 구현 때 사용, process_wait() 함수
+    struct list_elem child_elem; // _wait() 구현 때 사용, process_wait() 함수
+    struct semaphore fork_sema; // _fork() 구현 시 사용, __do_fork() 함수
 };
 
 /* If false (default), use round-robin scheduler.
@@ -135,6 +160,26 @@ const char *thread_name (void);
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
 
+/*----Alarm Clock------*/
+
+/* 실행 중인 스레드를 슬립으로 재운다. */
+void thread_sleep(int64_t ticks);
+/* 슬립 큐에서 깨워야 할 스레드를 깨운다. */
+void thread_awake(int64_t ticks);
+/* 최소 틱을 가진 스레드를 저장한다. */
+void update_next_tick_to_awake(int64_t ticks);
+/* thread.c의 next_tick_to_awake 반환 */
+int64_t get_next_tick_to_awake(void);
+
+
+/* ----Priority Scheduling---- */
+void test_max_priority (void);
+bool cmp_priority (const struct list_elem *a,
+                   const struct list_elem *b,
+                   void *aux UNUSED);
+
+
+
 int thread_get_priority (void);
 void thread_set_priority (int);
 
@@ -144,18 +189,5 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 void do_iret (struct intr_frame *tf);
-
-//seamphore to sleep wake
-void thread_sleep(int64_t ticks); /* 실행 중인 스레드를 슬립으로 만듬 */
-void thread_awake(int64_t ticks); /* 슬립큐에서 깨워야할 스레드를 깨움 */
-void update_next_tick_to_awake(int64_t ticks); /*최소 틱을 가진 스레드 저장 */
-int64_t get_next_tick_to_awake(void); /* thread.c의 next_tick_to_awake 반환 */
-
-
-//=========== priority scheduling ===============
-void max_priority(void);
-
-// 인자로 주어진 스레드들의 우선순위를 비교
-bool compare_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 #endif /* threads/thread.h */

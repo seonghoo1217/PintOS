@@ -41,12 +41,6 @@ struct condition {
     struct list waiters;        /* List of waiting threads. */
 };
 
-struct condition not_empty;
-struct condition not_full; // 한 lock에 의해 MUTEX상태를 만드는 구조
-//PUSH가 반복되다가 배열이 꽉 차면, PUSH는 배열이 완전히 비기 전까지 실행되지 않는 조건(condition)을 가지고 있다
-// (그래서 완전히 비기 전까지는 실행되지 않아서 condition 구조체의 이름이 not_empty가 된다.)
-
-
 void cond_init(struct condition *);
 
 void cond_wait(struct condition *, struct lock *);
@@ -54,9 +48,6 @@ void cond_wait(struct condition *, struct lock *);
 void cond_signal(struct condition *, struct lock *);
 
 void cond_broadcast(struct condition *, struct lock *);
-
-//sync
-bool cmp_sem_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 /* Optimization barrier.
  *
@@ -66,3 +57,6 @@ bool cmp_sem_priority (const struct list_elem *a, const struct list_elem *b, voi
 #define barrier() asm volatile ("" : : : "memory")
 
 #endif /* threads/synch.h */
+
+/* SYNCHRO */
+bool cmp_sem_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
