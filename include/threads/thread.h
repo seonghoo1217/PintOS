@@ -146,9 +146,14 @@ int thread_get_load_avg (void);
 void do_iret (struct intr_frame *tf);
 
 //seamphore to sleep wake
+/* project 1 - alarm clork */
 void thread_sleep(int64_t ticks); /* 실행 중인 스레드를 슬립으로 만듬 */
 void thread_awake(int64_t ticks); /* 슬립큐에서 깨워야할 스레드를 깨움 */
 void update_next_tick_to_awake(int64_t ticks); /*최소 틱을 가진 스레드 저장 */
 int64_t get_next_tick_to_awake(void); /* thread.c의 next_tick_to_awake 반환 */
+
+/* project 2 - priority scheduling */
+void compare_max_priority(void);
+bool compare_thread_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 #endif /* threads/thread.h */

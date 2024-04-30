@@ -222,6 +222,7 @@ thread_create (const char *name, int priority,
 
     /* Add to run queue. */
     thread_unblock (t);
+    compare_max_priority();
 
     return tid;
 }
@@ -256,7 +257,8 @@ thread_unblock (struct thread *t) {
 
     old_level = intr_disable ();
     ASSERT (t->status == THREAD_BLOCKED);
-    list_push_back (&ready_list, &t->elem);
+    // list_push_back (&ready_list, &t->elem);
+    list_insert_ordered(&ready_list, &t->elem, compare_thread_priority, NULL);
     t->status = THREAD_READY;
     intr_set_level (old_level);
 }
@@ -319,7 +321,8 @@ thread_yield (void) {
 
     old_level = intr_disable ();
     if (curr != idle_thread)
-        list_push_back (&ready_list, &curr->elem);
+        // list_push_back (&ready_list, &curr->elem);
+        list_insert_ordered(&ready_list, &curr->elem, compare_thread_priority, NULL);
     do_schedule (THREAD_READY);
     intr_set_level (old_level);
 }
@@ -328,6 +331,7 @@ thread_yield (void) {
 void
 thread_set_priority (int new_priority) {
     thread_current ()->priority = new_priority;
+    compare_max_priority();
 }
 
 /* Returns the current thread's priority. */
@@ -606,8 +610,7 @@ allocate_tid (void) {
 }
 
 
-
-// ===================================== Semaphore Block - Wake-Up =====================================
+// [프로젝트 1 - alarm clork]
 static bool
 wakeup_tick_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
     const struct thread *ta = list_entry(a, struct thread, elem);
@@ -673,4 +676,24 @@ void update_next_tick_to_awake(int64_t ticks)
 int64_t get_next_tick_to_awake(void)
 {
     return next_tick_to_awake;
+}
+
+// [프로젝트 1 - priority scheduling]
+/* 현재 스레드의 우선순위와 가장 높은 우선순위를 가진 스레드를 비교하여 스케줄링 */
+void compare_max_priority(void){
+    struct thread *curr = thread_current();
+    struct list_elem *max = list_begin(&ready_list);
+    struct thread *max_t = list_entry(max, struct thread, elem);
+
+    if(&ready_list && curr->priority < max_t->priority){
+        thread_yield();
+    }
+}
+
+// [프로젝트 1 - priority scheduling]
+bool compare_thread_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+	struct thread *t_a = list_entry(a, struct thread, elem);
+	struct thread *t_b = list_entry(b, struct thread, elem);
+
+    return t_a->priority > t_b->priority;
 }
