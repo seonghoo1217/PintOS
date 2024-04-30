@@ -6,37 +6,57 @@
 
 /* A counting semaphore. */
 struct semaphore {
-	unsigned value;             /* Current value. */
-	struct list waiters;        /* List of waiting threads. */
+    unsigned value;             /* Current value. */
+    struct list waiters;        /* List of waiting threads. */
 };
 
-void sema_init (struct semaphore *, unsigned value);
-void sema_down (struct semaphore *);
-bool sema_try_down (struct semaphore *);
-void sema_up (struct semaphore *);
-void sema_self_test (void);
+void sema_init(struct semaphore *, unsigned value);
+
+void sema_down(struct semaphore *);
+
+bool sema_try_down(struct semaphore *);
+
+void sema_up(struct semaphore *);
+
+void sema_self_test(void);
 
 /* Lock. */
 struct lock {
-	struct thread *holder;      /* Thread holding lock (for debugging). */
-	struct semaphore semaphore; /* Binary semaphore controlling access. */
+    struct thread *holder;      /* Thread holding lock (for debugging). */
+    struct semaphore semaphore; /* Binary semaphore controlling access. */
 };
 
-void lock_init (struct lock *);
-void lock_acquire (struct lock *);
-bool lock_try_acquire (struct lock *);
-void lock_release (struct lock *);
-bool lock_held_by_current_thread (const struct lock *);
+void lock_init(struct lock *);
+
+void lock_acquire(struct lock *);
+
+bool lock_try_acquire(struct lock *);
+
+void lock_release(struct lock *);
+
+bool lock_held_by_current_thread(const struct lock *);
 
 /* Condition variable. */
 struct condition {
-	struct list waiters;        /* List of waiting threads. */
+    struct list waiters;        /* List of waiting threads. */
 };
 
-void cond_init (struct condition *);
-void cond_wait (struct condition *, struct lock *);
-void cond_signal (struct condition *, struct lock *);
-void cond_broadcast (struct condition *, struct lock *);
+struct condition not_empty;
+struct condition not_full; // 한 lock에 의해 MUTEX상태를 만드는 구조
+//PUSH가 반복되다가 배열이 꽉 차면, PUSH는 배열이 완전히 비기 전까지 실행되지 않는 조건(condition)을 가지고 있다
+// (그래서 완전히 비기 전까지는 실행되지 않아서 condition 구조체의 이름이 not_empty가 된다.)
+
+
+void cond_init(struct condition *);
+
+void cond_wait(struct condition *, struct lock *);
+
+void cond_signal(struct condition *, struct lock *);
+
+void cond_broadcast(struct condition *, struct lock *);
+
+//sync
+bool cmp_sem_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 /* Optimization barrier.
  *
