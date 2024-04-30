@@ -156,6 +156,6 @@ int64_t get_next_tick_to_awake(void); /* thread.c의 next_tick_to_awake 반환 *
 void max_priority(void);
 
 // 인자로 주어진 스레드들의 우선순위를 비교
-bool compare_priority (const struct list_elem *a, const struct list_elem *a, void *aux UNUSED);
+bool compare_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 #endif /* threads/thread.h */

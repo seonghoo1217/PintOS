@@ -683,9 +683,12 @@ int64_t get_next_tick_to_awake(void)
 // ===================================== Priority Scheduling =====================================
 bool compare_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
 {
-    ta = list_entry(a, struct thread, elem);
-    tb = list_entry(b, struct thread, elem);
-    return ta->priority > tb->priority;
+    struct thread* t_a;
+    struct thread* t_b;
+
+    t_a = list_entry(a, struct thread, elem);
+    t_b = list_entry(b, struct thread, elem);
+    return ((t_a->priority) > (t_b->priority)) ? true : false;
 }
 
 void max_priority(void){
