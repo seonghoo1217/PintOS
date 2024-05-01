@@ -103,6 +103,8 @@ struct thread { // 이 struct thread 자체가 프로세스 디스크립터
     struct list donations; // multiple donation 고려하기 위해 사용: A thread가 B thread에 의해 priority가 변경됐다면 A thread의 list donations에 B 스레드를 기억해놓는다.
     struct list_elem donation_elem; // multiple donation 고려하기 위해 사용: B thread는 A thread의 기부자 목록에 자신 이름 새겨놓아야! 이를 donation_elem!
 
+
+
     /* Shared between thread.c and synch.c. & list.c도! */
     struct list_elem elem;              /* List element. */
 
@@ -124,16 +126,6 @@ struct thread { // 이 struct thread 자체가 프로세스 디스크립터
     /* Owned by thread.c. */
     struct intr_frame tf;               /* Information for switching */
     unsigned magic;                     /* Detects stack overflow. */
-
-    /* --- Project2: User programs - system call --- */
-    int exit_status; // _exit(), _wait() 구현 때 사용
-    struct file **file_descriptor_table; //FDT
-    int fdidx; // fd index
-
-    struct intr_frame parent_if; // _fork() 구현 때 사용, __do_fork() 함수
-    struct list child_list; // _wait() 구현 때 사용, process_wait() 함수
-    struct list_elem child_elem; // _wait() 구현 때 사용, process_wait() 함수
-    struct semaphore fork_sema; // _fork() 구현 시 사용, __do_fork() 함수
 };
 
 /* If false (default), use round-robin scheduler.
@@ -173,7 +165,7 @@ int64_t get_next_tick_to_awake(void);
 
 
 /* ----Priority Scheduling---- */
-void test_max_priority (void);
+void max_priority (void);
 bool cmp_priority (const struct list_elem *a,
                    const struct list_elem *b,
                    void *aux UNUSED);
@@ -191,3 +183,8 @@ int thread_get_load_avg (void);
 void do_iret (struct intr_frame *tf);
 
 #endif /* threads/thread.h */
+//Donate
+void donate_priority (void);
+void remove_with_lock (struct lock *);
+void refresh_priority (void);
+bool thread_compare_donate_priority(const struct list_elem *l, const struct list_elem *s, void *aux);

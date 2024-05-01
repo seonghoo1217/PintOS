@@ -416,8 +416,9 @@ thread_yield (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
-    thread_current ()->priority = new_priority;
+    thread_current()->init_priority = new_priority;
     /* --- Pjt 1.2 --- */
+    refresh_priority();
     max_priority();
 }
 
@@ -516,6 +517,11 @@ init_thread (struct thread *t, const char *name, int priority) {
     t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
     t->priority = priority;
     t->magic = THREAD_MAGIC;
+
+    // 1.4 donation
+    t->init_priority = priority;
+    list_init(&t->donations);
+    t->wait_on_lock =NULL;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -725,3 +731,67 @@ void max_priority (void){
 }
 
 /* --- Project 1-2. Priority Scheduling --- */
+
+// Donate
+// nested Donation 방식
+void donate_priority (void)
+{
+    int cnt = 0;
+    struct thread *t = thread_current();
+    int cur_priority = t->priority;
+
+    while ( cnt < 9 )
+    {
+        cnt++;
+        if (t->wait_on_lock == NULL)
+        {
+            break;
+        }
+
+        t = t->wait_on_lock->holder;
+        t->priority = cur_priority;
+    }
+}
+
+// 만약 lock의 holder가 원하는 lock이 없다면 nested donation을 중지해야한다 (IF문).
+//원하는 lock이 있다면 lock의 holder에게도 current thread의 priority를 준다.
+
+void remove_with_lock(struct lock *lock) {
+    struct thread *cur = thread_current();
+    struct list_elem *e;
+
+    for (e= list_begin(&cur->donations); e != list_end(&cur->donations);e = list_next(e)){
+        struct thread *t = list_entry(e, struct thread, donation_elem);
+        if (t->wait_on_lock == lock) {
+            list_remove(&t->donation_elem);
+        }
+    }
+}
+
+//thread *t 는 현재 running중인 thread를 말한다.
+// donations를 순회한다. 만약 donation_elem의 주인 thread가 이제 해제한 lock이면 그 elem을 리스트에서 제외한다.
+
+//lock이 해제되었을 때, priority를 갱신하는 작업이 필요하다. 그것이 refresh_priority()이다.
+// (lock_release에서 remove_with_lock()을 실행하고 바로 refresh_priority()를 실행했던 것을 기억하자.
+
+
+void refresh_priority(void) {
+    struct thread *cur = thread_current();
+    cur->priority = cur->init_priority;
+
+    if (!list_empty(&cur->donations)) {
+        list_sort(&cur->donations, thread_compare_donate_priority, 0);
+        struct thread *front = list_entry (list_front(&cur->donations), struct thread, donation_elem);
+        if (front->priority > cur->priority)
+        {
+            cur->priority = front->priority;
+        }
+    }
+}
+//lock이 해제되었을 때, 여전히 thread_current (=running_thread)가 다른 lock을 들고 있어서 donation을 받을 수 있다면,
+//donations에서 priority 순으로 정렬하고, 그 중 가장 높은 prioirty를 받아온다.
+
+/* --- project 1.4 --- */
+bool thread_compare_donate_priority(const struct list_elem *l, const struct list_elem *s, void *aux) {
+    return list_entry (l, struct thread, donation_elem)->priority > list_entry (s, struct thread, donation_elem)->priority;
+}
