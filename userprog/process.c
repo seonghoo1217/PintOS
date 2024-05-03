@@ -160,10 +160,17 @@ error:
 
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
+
+/* 사용자가 입력한 명령어를 수행하도록 프로그램을 메모리에 적재하고 실행하는 함수 */
 int
 process_exec (void *f_name) {
-	char *file_name = f_name;
+	char *file_name = f_name; // filename은 문자열이어야하므로 형변환 해줘야함
 	bool success;
+	
+	char file_name_save[128];
+
+	// file_name 의 메모리의 내용을 file_name_save에 복사하겠다.
+	memcpy(file_name_save, file_name, strlen(file_name)+1);
 
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
@@ -174,13 +181,17 @@ process_exec (void *f_name) {
 	_if.eflags = FLAG_IF | FLAG_MBS;
 
 	/* We first kill the current context */
+	/* 새로운 실행 파일을 스레드에 담기 전에 현재 process에 담긴 context 삭제
+	 * 삭제 = 현재 프로세스에 할당된 page directory를 지운다는 뜻 */
 	process_cleanup ();
 
 	/* And then load the binary */
 	success = load (file_name, &_if);
+	// file_name : f_name 의 첫 번째 문자열
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
+	// 프로그램 받기 위해 만든 임시변수. load 후 메모리 반환
 	if (!success)
 		return -1;
 
@@ -329,6 +340,17 @@ load (const char *file_name, struct intr_frame *if_) {
 	bool success = false;
 	int i;
 
+	char *arg_list[128];
+	char *token, *save_ptr;
+	int token_cnt = 0;
+
+	token = strtok_r(file_name, " ", &save_ptr);
+	arg_list[token_cnt]= token;
+	while (token != NULL){
+		token = strtok_r(NULL, " ", &save_ptr);
+		token_cnt++;
+		arg_list[token_cnt]=token;
+	}
 	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create ();
 	if (t->pml4 == NULL)
