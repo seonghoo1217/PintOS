@@ -189,7 +189,6 @@ process_exec (void *f_name) {
 	success = load (file_name, &_if);
 	// file_name : f_name 의 첫 번째 문자열
 
-	hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true);
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
@@ -197,6 +196,7 @@ process_exec (void *f_name) {
 	if (!success)
 		return -1;
 
+	hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true);
 	/* Start switched process. */
 	do_iret (&_if);
 	NOT_REACHED ();
@@ -214,6 +214,10 @@ process_exec (void *f_name) {
  * does nothing. */
 int
 process_wait (tid_t child_tid UNUSED) {
+	while(1)
+	{
+
+	}
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
@@ -350,7 +354,9 @@ load (const char *file_name, struct intr_frame *if_) {
 	arg_list[token_cnt]= token;
 	while (token != NULL){
 		token = strtok_r(NULL, " ", &save_ptr);
+		printf("%d", token_cnt);
 		token_cnt++;
+		printf("%d", token_cnt);
 		arg_list[token_cnt]=token;					// arg_list[i] : 파싱된 문자열 저장
 	}
 
@@ -442,7 +448,8 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
-
+	/* 파싱한 프로그램 이름과 인자를 스택에 저장하기 위해서 새로운 함수 선언 */
+	argument_stack(arg_list, token_cnt, if_); 
 	success = true;
 
 done:
@@ -663,3 +670,45 @@ setup_stack (struct intr_frame *if_) {
 	return success;
 }
 #endif /* VM */
+
+
+/* --- Project 2 : Parsing --- */
+/* 인자를 스택에 올린다? 저장한다? */
+void argument_stack(char **argv, int argc, struct intr_frame *if_){ // if_ 는 인터럽트 스택 프레임 -> 여기에 쌓기 
+	
+	char *arg_address[128];
+
+	for (int i = argc - 1; i >= 0; i--){
+		int argv_len = strlen(argv[i]); // 각 인자의 길이
+
+		if_->rsp = if_->rsp - (argv_len+1); 	// 스택포인터를 정확히 넣으려는 값만큼 내린다.
+		memcpy(if_->rsp, argv[i], argv_len +1); // 해당영역에 정확히 그 크기 만큼 넣는다.
+		arg_address[i] = if_->rsp; 				// 해당 배열에 문자열 시작주소 위치를 넣는다.
+	}
+
+	/* 워드 정렬 : 8의 배수 맞추기 위해 패딩 넣기 */
+	while (if_->rsp %8 != 0) {
+		if_->rsp = if_->rsp - 1;
+		*(uint8_t *)if_->rsp = 0; // 패딩영역에 데이터 0 삽입 -> 1바이트 = 8비트 저장
+	}
+
+	/* 배열의 문자열 주소값의 값 넣기 */
+	for (int i = argc; i >= 0; i--){
+		if_->rsp = if_->rsp - 8; // 8바이트만큼 내림
+		if (i == argc){
+			memset(if_->rsp, 0, sizeof(char **));
+		}
+		else {
+			memcpy(if_->rsp, &arg_address[i], sizeof(char **)); // char 포인터의 크기 8바이트 
+		}
+	}
+
+	/* fake return address */
+	if_->rsp = if_->rsp - 8;
+	memset(if_->rsp, 0, sizeof(void **));
+
+	if_->R.rdi = argc;
+	if_->R.rsi = if_->rsp + 8; // fake_address 바로 위: arg_address 맨 앞 가리키는 주소값!
+	
+
+}
