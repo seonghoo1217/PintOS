@@ -30,7 +30,7 @@ static void __do_fork (void *);
 /* General process initializer for initd and other process. */
 static void
 process_init (void) {
-	struct thread *current = thread_current ();
+    struct thread *current = thread_current ();
 }
 
 /* Starts the first userland program, called "initd", loaded from FILE_NAME.
@@ -215,6 +215,57 @@ process_exec (void *f_name) { // 유저가 입력한 명령어를 수행하도�
 }
 
 
+/* --- Project 2: Command_line_parsing ---*/
+/* 인자를 stack에 올린다. */
+void argument_stack(char **argv, int argc, struct intr_frame *if_) { // if_는 인터럽트 스택 프레임 => 여기에다가 쌓는다.
+
+    /* insert arguments' address */
+    char *arg_address[128];
+
+    // 거꾸로 삽입 => 스택은 반대 방향으로 확장하기 떄문!
+
+    /* 맨 끝 NULL 값(arg[4]) 제외하고 스택에 저장(arg[0] ~ arg[3]) */
+    for (int i = argc-1; i>=0; i--) {
+        int argv_len = strlen(argv[i]);
+        /*
+        if_->rsp: 현재 user stack에서 현재 위치를 가리키는 스택 포인터.
+        각 인자에서 인자 크기(argv_len)를 읽고 (이때 각 인자에 sentinel이 포함되어 있으니 +1 - strlen에서는 sentinel 빼고 읽음)
+        그 크기만큼 rsp를 내려준다. 그 다음 빈 공간만큼 memcpy를 해준다.
+         */
+        if_->rsp = if_->rsp - (argv_len + 1);
+        memcpy(if_->rsp, argv[i], argv_len+1);
+        arg_address[i] = if_->rsp; // arg_address 배열에 현재 문자열 시작 주소 위치를 저장한다.
+    }
+
+    /* word-align: 8의 배수 맞추기 위해 padding 삽입*/
+    while (if_->rsp % 8 != 0)
+    {
+        if_->rsp--; // 주소값을 1 내리고
+        *(uint8_t *) if_->rsp = 0; //데이터에 0 삽입 => 8바이트 저장
+    }
+
+    /* 이제는 주소값 자체를 삽입! 이때 센티넬 포함해서 넣기*/
+
+    for (int i = argc; i >=0; i--)
+    { // 여기서는 NULL 값 포인터도 같이 넣는다.
+        if_->rsp = if_->rsp - 8; // 8바이트만큼 내리고
+        if (i == argc) { // 가장 위에는 NULL이 아닌 0을 넣어야지
+            memset(if_->rsp, 0, sizeof(char **));
+        } else { // 나머지에는 arg_address 안에 들어있는 값 가져오기
+            memcpy(if_->rsp, &arg_address[i], sizeof(char **)); // char 포인터 크기: 8바이트
+        }
+    }
+
+
+    /* fake return address */
+    if_->rsp = if_->rsp - 8; // void 포인터도 8바이트 크기
+    memset(if_->rsp, 0, sizeof(void *));
+
+    if_->R.rdi  = argc;
+    if_->R.rsi = if_->rsp + 8; // fake_address 바로 위: arg_address 맨 앞 가리키는 주소값!
+}
+
+
 /* Waits for thread TID to die and returns its exit status.  If
  * it was terminated by the kernel (i.e. killed due to an
  * exception), returns -1.  If TID is invalid or if it was not a
@@ -226,10 +277,14 @@ process_exec (void *f_name) { // 유저가 입력한 명령어를 수행하도�
  * does nothing. */
 int
 process_wait (tid_t child_tid UNUSED) {
-	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
-	 * XXX:       to add infinite loop here before
-	 * XXX:       implementing the process_wait. */
-	return -1;
+    /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
+     * XXX:       to add infinite loop here before
+     * XXX:       implementing the process_wait. */
+
+    /* --- Project 2: Command_line_parsing ---*/
+    while (1){}
+    /* --- Project 2: Command_line_parsing ---*/
+    return -1;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -338,8 +393,8 @@ struct ELF64_PHDR {
 static bool setup_stack (struct intr_frame *if_);
 static bool validate_segment (const struct Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
-		uint32_t read_bytes, uint32_t zero_bytes,
-		bool writable);
+                          uint32_t read_bytes, uint32_t zero_bytes,
+                          bool writable);
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
  * Stores the executable's entry point into *RIP
@@ -469,7 +524,7 @@ load (const char *file_name, struct intr_frame *if_) {
 
     success = true;
 
-done:
+    done:
     /* We arrive here whether the load is successful or not. */
     file_close (file);
     return success;
@@ -480,44 +535,44 @@ done:
  * FILE and returns true if so, false otherwise. */
 static bool
 validate_segment (const struct Phdr *phdr, struct file *file) {
-	/* p_offset and p_vaddr must have the same page offset. */
-	if ((phdr->p_offset & PGMASK) != (phdr->p_vaddr & PGMASK))
-		return false;
+    /* p_offset and p_vaddr must have the same page offset. */
+    if ((phdr->p_offset & PGMASK) != (phdr->p_vaddr & PGMASK))
+        return false;
 
-	/* p_offset must point within FILE. */
-	if (phdr->p_offset > (uint64_t) file_length (file))
-		return false;
+    /* p_offset must point within FILE. */
+    if (phdr->p_offset > (uint64_t) file_length (file))
+        return false;
 
-	/* p_memsz must be at least as big as p_filesz. */
-	if (phdr->p_memsz < phdr->p_filesz)
-		return false;
+    /* p_memsz must be at least as big as p_filesz. */
+    if (phdr->p_memsz < phdr->p_filesz)
+        return false;
 
-	/* The segment must not be empty. */
-	if (phdr->p_memsz == 0)
-		return false;
+    /* The segment must not be empty. */
+    if (phdr->p_memsz == 0)
+        return false;
 
-	/* The virtual memory region must both start and end within the
-	   user address space range. */
-	if (!is_user_vaddr ((void *) phdr->p_vaddr))
-		return false;
-	if (!is_user_vaddr ((void *) (phdr->p_vaddr + phdr->p_memsz)))
-		return false;
+    /* The virtual memory region must both start and end within the
+       user address space range. */
+    if (!is_user_vaddr ((void *) phdr->p_vaddr))
+        return false;
+    if (!is_user_vaddr ((void *) (phdr->p_vaddr + phdr->p_memsz)))
+        return false;
 
-	/* The region cannot "wrap around" across the kernel virtual
-	   address space. */
-	if (phdr->p_vaddr + phdr->p_memsz < phdr->p_vaddr)
-		return false;
+    /* The region cannot "wrap around" across the kernel virtual
+       address space. */
+    if (phdr->p_vaddr + phdr->p_memsz < phdr->p_vaddr)
+        return false;
 
-	/* Disallow mapping page 0.
-	   Not only is it a bad idea to map page 0, but if we allowed
-	   it then user code that passed a null pointer to system calls
-	   could quite likely panic the kernel by way of null pointer
-	   assertions in memcpy(), etc. */
-	if (phdr->p_vaddr < PGSIZE)
-		return false;
+    /* Disallow mapping page 0.
+       Not only is it a bad idea to map page 0, but if we allowed
+       it then user code that passed a null pointer to system calls
+       could quite likely panic the kernel by way of null pointer
+       assertions in memcpy(), etc. */
+    if (phdr->p_vaddr < PGSIZE)
+        return false;
 
-	/* It's okay. */
-	return true;
+    /* It's okay. */
+    return true;
 }
 
 #ifndef VM
@@ -544,61 +599,61 @@ static bool install_page (void *upage, void *kpage, bool writable);
  * or disk read error occurs. */
 static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
-		uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
-	ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
-	ASSERT (pg_ofs (upage) == 0);
-	ASSERT (ofs % PGSIZE == 0);
+              uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
+    ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
+    ASSERT (pg_ofs (upage) == 0);
+    ASSERT (ofs % PGSIZE == 0);
 
-	file_seek (file, ofs);
-	while (read_bytes > 0 || zero_bytes > 0) {
-		/* Do calculate how to fill this page.
-		 * We will read PAGE_READ_BYTES bytes from FILE
-		 * and zero the final PAGE_ZERO_BYTES bytes. */
-		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
-		size_t page_zero_bytes = PGSIZE - page_read_bytes;
+    file_seek (file, ofs);
+    while (read_bytes > 0 || zero_bytes > 0) {
+        /* Do calculate how to fill this page.
+         * We will read PAGE_READ_BYTES bytes from FILE
+         * and zero the final PAGE_ZERO_BYTES bytes. */
+        size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+        size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-		/* Get a page of memory. */
-		uint8_t *kpage = palloc_get_page (PAL_USER);
-		if (kpage == NULL)
-			return false;
+        /* Get a page of memory. */
+        uint8_t *kpage = palloc_get_page (PAL_USER);
+        if (kpage == NULL)
+            return false;
 
-		/* Load this page. */
-		if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes) {
-			palloc_free_page (kpage);
-			return false;
-		}
-		memset (kpage + page_read_bytes, 0, page_zero_bytes);
+        /* Load this page. */
+        if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes) {
+            palloc_free_page (kpage);
+            return false;
+        }
+        memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
-		/* Add the page to the process's address space. */
-		if (!install_page (upage, kpage, writable)) {
-			printf("fail\n");
-			palloc_free_page (kpage);
-			return false;
-		}
+        /* Add the page to the process's address space. */
+        if (!install_page (upage, kpage, writable)) {
+            printf("fail\n");
+            palloc_free_page (kpage);
+            return false;
+        }
 
-		/* Advance. */
-		read_bytes -= page_read_bytes;
-		zero_bytes -= page_zero_bytes;
-		upage += PGSIZE;
-	}
-	return true;
+        /* Advance. */
+        read_bytes -= page_read_bytes;
+        zero_bytes -= page_zero_bytes;
+        upage += PGSIZE;
+    }
+    return true;
 }
 
 /* Create a minimal stack by mapping a zeroed page at the USER_STACK */
 static bool
 setup_stack (struct intr_frame *if_) {
-	uint8_t *kpage;
-	bool success = false;
+    uint8_t *kpage;
+    bool success = false;
 
-	kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-	if (kpage != NULL) {
-		success = install_page (((uint8_t *) USER_STACK) - PGSIZE, kpage, true);
-		if (success)
-			if_->rsp = USER_STACK;
-		else
-			palloc_free_page (kpage);
-	}
-	return success;
+    kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+    if (kpage != NULL) {
+        success = install_page (((uint8_t *) USER_STACK) - PGSIZE, kpage, true);
+        if (success)
+            if_->rsp = USER_STACK;
+        else
+            palloc_free_page (kpage);
+    }
+    return success;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
@@ -612,12 +667,12 @@ setup_stack (struct intr_frame *if_) {
  * if memory allocation fails. */
 static bool
 install_page (void *upage, void *kpage, bool writable) {
-	struct thread *t = thread_current ();
+    struct thread *t = thread_current ();
 
-	/* Verify that there's not already a page at that virtual
-	 * address, then map our page there. */
-	return (pml4_get_page (t->pml4, upage) == NULL
-			&& pml4_set_page (t->pml4, upage, kpage, writable));
+    /* Verify that there's not already a page at that virtual
+     * address, then map our page there. */
+    return (pml4_get_page (t->pml4, upage) == NULL
+            && pml4_set_page (t->pml4, upage, kpage, writable));
 }
 #else
 /* From here, codes will be used after project 3.
@@ -687,54 +742,3 @@ setup_stack (struct intr_frame *if_) {
 	return success;
 }
 #endif /* VM */
-
-// 2. Process
-/* --- Project 2: Command_line_parsing ---*/
-/* 인자를 stack에 올린다. */
-void argument_stack(char **argv, int argc, struct intr_frame *if_) { // if_는 인터럽트 스택 프레임 => 여기에다가 쌓는다.
-
-    /* insert arguments' address */
-    char *arg_address[128];
-
-    // 거꾸로 삽입 => 스택은 반대 방향으로 확장하기 떄문!
-
-    /* 맨 끝 NULL 값(arg[4]) 제외하고 스택에 저장(arg[0] ~ arg[3]) */
-    for (int i = argc-1; i>=0; i--) {
-        int argv_len = strlen(argv[i]);
-        /*
-        if_->rsp: 현재 user stack에서 현재 위치를 가리키는 스택 포인터.
-        각 인자에서 인자 크기(argv_len)를 읽고 (이때 각 인자에 sentinel이 포함되어 있으니 +1 - strlen에서는 sentinel 빼고 읽음)
-        그 크기만큼 rsp를 내려준다. 그 다음 빈 공간만큼 memcpy를 해준다.
-         */
-        if_->rsp = if_->rsp - (argv_len + 1);
-        memcpy(if_->rsp, argv[i], argv_len+1);
-        arg_address[i] = if_->rsp; // arg_address 배열에 현재 문자열 시작 주소 위치를 저장한다.
-    }
-
-    /* word-align: 8의 배수 맞추기 위해 padding 삽입*/
-    while (if_->rsp % 8 != 0)
-    {
-        if_->rsp--; // 주소값을 1 내리고
-        *(uint8_t *) if_->rsp = 0; //데이터에 0 삽입 => 8바이트 저장
-    }
-
-    /* 이제는 주소값 자체를 삽입! 이때 센티넬 포함해서 넣기*/
-
-    for (int i = argc; i >=0; i--)
-    { // 여기서는 NULL 값 포인터도 같이 넣는다.
-        if_->rsp = if_->rsp - 8; // 8바이트만큼 내리고
-        if (i == argc) { // 가장 위에는 NULL이 아닌 0을 넣어야지
-            memset(if_->rsp, 0, sizeof(char **));
-        } else { // 나머지에는 arg_address 안에 들어있는 값 가져오기
-            memcpy(if_->rsp, &arg_address[i], sizeof(char **)); // char 포인터 크기: 8바이트
-        }
-    }
-
-
-    /* fake return address */
-    if_->rsp = if_->rsp - 8; // void 포인터도 8바이트 크기
-    memset(if_->rsp, 0, sizeof(void *));
-
-    if_->R.rdi  = argc;
-    if_->R.rsi = if_->rsp + 8; // fake_address 바로 위: arg_address 맨 앞 가리키는 주소값!
-}
