@@ -189,6 +189,8 @@ process_exec (void *f_name) {
 	success = load (file_name, &_if);
 	// file_name : f_name 의 첫 번째 문자열
 
+	hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true);
+
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	// 프로그램 받기 위해 만든 임시변수. load 후 메모리 반환
@@ -349,15 +351,17 @@ load (const char *file_name, struct intr_frame *if_) {
 	while (token != NULL){
 		token = strtok_r(NULL, " ", &save_ptr);
 		token_cnt++;
-		arg_list[token_cnt]=token;
+		arg_list[token_cnt]=token;					// arg_list[i] : 파싱된 문자열 저장
 	}
+
+
 	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create ();
 	if (t->pml4 == NULL)
 		goto done;
 	process_activate (thread_current ());
 
-	/* Open executable file. */
+	/* 실행 가능한 파일 열기 */
 	file = filesys_open (file_name);
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
