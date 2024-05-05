@@ -69,7 +69,7 @@ void check_address(void *addr) {
     유저 영역을 벗어난 영역일 경우 프로세스 종료 (exit(-1))*/
 
     /* --- Project 2: User memory access --- */
-    if (is_kernel_vaddr(addr)){
+    if (!is_user_vaddr(addr) || addr !=NULL){
         exit(-1);
     }/*
     if (!(user_addr_start > addr) || !(addr > user_addr_finish)) {
