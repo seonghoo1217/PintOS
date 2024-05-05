@@ -40,22 +40,25 @@ syscall_init (void) {
 /* --- Project 2: system call --- */
 
 /* The main system call interface */
-void
-syscall_handler (struct intr_frame *f UNUSED) {
+void syscall_handler(struct intr_frame *f UNUSED)
+{
     // TODO: Your implementation goes here.
-    switch(number) {
+    printf("system call!\n");
+    uint64_t arg[7];
+    switch (arg[0])
+    {
         case SYS_HALT:
             halt();
-
+            break;
         case SYS_EXIT:
-            exit();
-
+            exit(arg[1]);
+            break;
         case SYS_EXEC:
             exec();
-
+            break;
     }
-    printf ("system call!\n");
-    thread_exit ();
+
+    thread_exit();
 }
 
 void check_address(void *addr) {
@@ -66,10 +69,13 @@ void check_address(void *addr) {
     유저 영역을 벗어난 영역일 경우 프로세스 종료 (exit(-1))*/
 
     /* --- Project 2: User memory access --- */
+    if (is_kernel_vaddr(addr)){
+        exit(-1);
+    }/*
     if (!(user_addr_start > addr) || !(addr > user_addr_finish)) {
         exit(-1);
-        /* --- Project 2: User memory access --- */
-    }
+        *//* --- Project 2: User memory access --- *//*
+    }*/
 }
 
 void get_argument(void *esp, int *arg, int count) {
