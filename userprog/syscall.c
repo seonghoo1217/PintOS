@@ -37,10 +37,42 @@ syscall_init (void) {
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
 }
 
+/* --- Project 2: system call --- */
+
 /* The main system call interface */
 void
 syscall_handler (struct intr_frame *f UNUSED) {
-	// TODO: Your implementation goes here.
-	printf ("system call!\n");
-	thread_exit ();
+    // TODO: Your implementation goes here.
+    switch(number) {
+        case SYS_HALT:
+            halt();
+
+        case SYS_EXIT:
+            exit();
+
+        case SYS_EXEC:
+            exec();
+
+    }
+    printf ("system call!\n");
+    thread_exit ();
+}
+
+void check_address(void *addr) {
+    unsigned int user_addr_start = 0x8048000;
+    unsigned int user_addr_finish= 0xc0000000;
+
+    /* 주소 값이 유저 영역에서 사용하는 주소 값인지 확인하는 함수.
+    유저 영역을 벗어난 영역일 경우 프로세스 종료 (exit(-1))*/
+
+    /* --- Project 2: User memory access --- */
+    if (!(user_addr_start > addr) || !(addr > user_addr_finish)) {
+        exit(-1);
+        /* --- Project 2: User memory access --- */
+    }
+}
+
+void get_argument(void *esp, int *arg, int count) {
+    /* 유저 스택에 있는 인자들을 커널에 저장하는 함수. 스택 포인터(esp)에 count(인자 개수)만큼의 데이터를 arg에 저장.*/
+
 }
