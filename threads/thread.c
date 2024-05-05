@@ -539,7 +539,7 @@ next_thread_to_run (void) {
 
 /* Use iretq to launch the thread */
 void
-do_iret (struct intr_frame *tf) {
+do_iret (struct intr_frame *tf) {    // 사용자 프로세스가 CPU로 넘어간다
     __asm __volatile(
             "movq %0, %%rsp\n"
             "movq 0(%%rsp),%%r15\n"

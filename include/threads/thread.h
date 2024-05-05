@@ -9,6 +9,9 @@
 #include "vm/vm.h"
 #endif
 
+// [project 2 - User Programs]
+#define USERPROG
+
 
 /* States in a thread's life cycle. */
 enum thread_status {

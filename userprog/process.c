@@ -158,6 +158,48 @@ error:
 	thread_exit ();
 }
 
+/* project 2 - Argument Passing */
+void argument_stack(char *argv[], int argc, struct intr_frame *if_){
+	char *arg_address[128];
+
+	//printf("\n%d\n", argc);
+	/* 인자들의 주소 넣기 (거꾸로 삽입 : 스택은 반대 방향으로 확장하기 때문) */
+	for(int i = argc - 1; i >= 0; i--){
+		//printf("\n%s\n",argv[i]);
+		int argv_len = strlen(argv[i]);
+		/* if_->rsp : 현재 user stack에서 현재 위치를 가리키는 스택 포인터 
+		   인자 크기 만큼 rsp를 내려준다 */
+		if_ -> rsp = if_ -> rsp - (argv_len + 1);
+		/* 빈 공간만큼 memcpy */
+		memcpy(if_ -> rsp, argv[i], argv_len + 1);
+		/* 배열에 현재 문자열 시작 주소 위치 저장 */
+		arg_address[i] = if_ -> rsp;
+	}
+
+	/* word align 맞추기 위해 8의 배수가 될 때까지 rsp 내린다 */
+	while(if_ -> rsp % 8 != 0){
+		if_ -> rsp = if_ -> rsp - 1;
+		*(uint8_t *)if_ -> rsp = 0;
+	}
+
+	/* 주소값 삽입 (sentinal(null) 주소값 포함) */
+	for(int i = argc; i >= 0; i--){
+		if_ -> rsp = if_ -> rsp - 8;
+
+		if(i == argc)
+			memset(if_ -> rsp, 0, sizeof(char **));
+		else
+			memcpy(if_ -> rsp, &arg_address[i], sizeof(char **));
+	}
+
+	/* fake return address */
+	if_ -> rsp = if_ -> rsp -8;
+	memset(if_ -> rsp, 0, sizeof(void *));
+
+	if_ -> R.rdi = argc;
+	if_ -> R.rsi = if_ -> rsp + 8;
+}
+
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
 int
@@ -165,16 +207,21 @@ process_exec (void *f_name) {
 	char *file_name = f_name;
 	bool success;
 
+	/* project 2 - Command Line Parsing */
+	char file_name_copy[128];			// 스택에 저장
+	/* 원본 문자열 복사 */
+	memcpy(file_name_copy, file_name, strlen(file_name)+1);		// +1 하는 이유는 마지막 개행 문자까지 포함하기 위해
+
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
 	 * it stores the execution information to the member. */
-	struct intr_frame _if;
+	struct intr_frame _if;										// 유저 프로그램을 실행할 때 필요한 정보를 포함
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
 
 	/* We first kill the current context */
-	process_cleanup ();
+	process_cleanup ();											// 새로운 실행 파일을 현재 스레드에 담기 전에 현재 프로세스에 담긴 컨텍스트를 지운다 (현재 프로세스에 할당된 page directory를 지움)
 
 	/* And then load the binary */
 	success = load (file_name, &_if);
@@ -183,6 +230,8 @@ process_exec (void *f_name) {
 	palloc_free_page (file_name);
 	if (!success)
 		return -1;
+
+	hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true);
 
 	/* Start switched process. */
 	do_iret (&_if);
@@ -201,6 +250,10 @@ process_exec (void *f_name) {
  * does nothing. */
 int
 process_wait (tid_t child_tid UNUSED) {
+	/* 자식 프로세스를 기다리기 위해 반복문 */
+	for (int i = 0; i < 100000000; i++){
+
+	}
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
@@ -321,7 +374,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
  * and its initial stack pointer into *RSP.
  * Returns true if successful, false otherwise. */
 static bool
-load (const char *file_name, struct intr_frame *if_) {
+load (const char *file_name, struct intr_frame *if_) {				// 메모리 할당받고 사용자 프로그램을 메모리에 적재
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
@@ -329,11 +382,26 @@ load (const char *file_name, struct intr_frame *if_) {
 	bool success = false;
 	int i;
 
+	/* project 2 - Command Line Parsing */
+	char *ptr, *token;
+	char *parsing_list[128];
+	int count = 0;
+
 	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create ();
 	if (t->pml4 == NULL)
 		goto done;
-	process_activate (thread_current ());
+	process_activate (thread_current ());						// 페이지 테이블 활성화
+
+	/* project 2 - Command Line Parsing */
+	token = strtok_r(file_name, " ", &ptr);
+	parsing_list[count] = token;
+
+	while(token != NULL){
+		token = strtok_r(NULL, " ", &ptr);
+		count++;
+		parsing_list[count] = token;
+	}
 
 	/* Open executable file. */
 	file = filesys_open (file_name);
@@ -416,6 +484,9 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
+
+	/* project 2 - Argument Passing */
+	argument_stack(parsing_list, count, if_);
 
 	success = true;
 
