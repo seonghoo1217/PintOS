@@ -42,9 +42,19 @@ syscall_init (void) {
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f UNUSED)
 {
+    /* 유저 스택에 저장되어 있는 시스템 콜 넘버를 가져오기 */
+    int sys_number = f->R.rax; // rax: 시스템 콜 넘버
+    /*
+	인자 들어오는 순서:
+	1번째 인자: %rdi
+	2번째 인자: %rsi
+	3번째 인자: %rdx
+	4번째 인자: %r10
+	5번째 인자: %r8
+	6번째 인자: %r9
+	*/
     // TODO: Your implementation goes here.
-    printf("system call!\n");
-    uint64_t arg[7];
+    /*uint64_t arg[7];
     switch (arg[0])
     {
         case SYS_HALT:
@@ -56,15 +66,43 @@ void syscall_handler(struct intr_frame *f UNUSED)
         case SYS_EXEC:
             exec();
             break;
+    }*/
+    switch(sys_number) {
+        case SYS_HALT:
+            halt();
+        case SYS_EXIT:
+            exit(f->R.rdi);
+        case SYS_FORK:
+            fork(f->R.rdi);
+        case SYS_EXEC:
+            exec(f->R.rdi);
+        case SYS_WAIT:
+            wait(f->R.rdi);
+        case SYS_CREATE:
+            create(f->R.rdi, f->R.rsi);
+        case SYS_REMOVE:
+            remove(f->R.rdi);
+        case SYS_OPEN:
+            open(f->R.rdi);
+        case SYS_FILESIZE:
+            filesize(f->R.rdi);
+        case SYS_READ:
+            read(f->R.rdi, f->R.rsi, f->R.rdx);
+        case SYS_WRITE:
+            write(f->R.rdi, f->R.rsi, f->R.rdx);
+        case SYS_SEEK:
+            seek(f->R.rdi, f->R.rsi);
+        case SYS_TELL:
+            tell(f->R.rdi);
+        case SYS_CLOSE:
+            close(f->R.rdi);
     }
+    printf("system call!\n");
 
     thread_exit();
 }
 
 void check_address(void *addr) {
-    unsigned int user_addr_start = 0x8048000;
-    unsigned int user_addr_finish= 0xc0000000;
-
     /* 주소 값이 유저 영역에서 사용하는 주소 값인지 확인하는 함수.
     유저 영역을 벗어난 영역일 경우 프로세스 종료 (exit(-1))*/
 
@@ -83,7 +121,36 @@ void check_address(void *addr) {
     }*/
 }
 
-void get_argument(void *esp, int *arg, int count) {
-    /* 유저 스택에 있는 인자들을 커널에 저장하는 함수. 스택 포인터(esp)에 count(인자 개수)만큼의 데이터를 arg에 저장.*/
+void halt(void){
+    power_off();
+}
 
+void exit(int status)
+{
+    struct thread *t = thread_current();
+    printf("%s: exit%d\n", t->name, status); // Process Termination Message
+    /* 정상적으로 종료됐다면 status는 0 */
+    /* status: 프로그램이 정상적으로 종료됐는지 확인 */
+    thread_exit();
+}
+
+/* 파일 생성하는 시스템 콜 */
+bool create (const char *file, unsigned initial_size) {
+    /* 성공이면 true, 실패면 false */
+    check_address(file);
+    if (filesys_create(file, initial_size)) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+bool remove (const char *file) {
+    check_address(file);
+    if (filesys_remove(file)) {
+        return true;
+    } else {
+        return false;
+    }
 }
