@@ -354,9 +354,9 @@ load (const char *file_name, struct intr_frame *if_) {
 	arg_list[token_cnt]= token;
 	while (token != NULL){
 		token = strtok_r(NULL, " ", &save_ptr);
-		printf("%d", token_cnt);
+		// printf("%d", token_cnt);
 		token_cnt++;
-		printf("%d", token_cnt);
+		// printf("%d", token_cnt);
 		arg_list[token_cnt]=token;					// arg_list[i] : 파싱된 문자열 저장
 	}
 

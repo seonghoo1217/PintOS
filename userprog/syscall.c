@@ -44,3 +44,20 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	printf ("system call!\n");
 	thread_exit ();
 }
+
+/* Project 2-2 */
+/* 주소 값이 유저 영역에서 사용하는 주소 값인지 확인 하는 함수
+ * 1. 주소가 NULL 값인지 확인  
+ * 2. 인자로 받아온 주소가 유저영역의 주소인지 확인
+ * 3. 해당 페이지가 존재하지 않는지 확인 (포인터가 가리키는 주소가 유저 영역내에 있지만 페이지로 할당하지 않은 영역 일수도 있음)
+*/
+void check_address(void * uaddr){
+	struct thread * curr = thread_current();
+
+	if (uaddr == NULL || 
+		is_kernel_vaddr(uaddr) || 
+		pml4_get_page(curr->pml4, uaddr)== NULL)
+		{
+		exit(-1);
+	}
+}
