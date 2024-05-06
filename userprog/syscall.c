@@ -69,7 +69,12 @@ void check_address(void *addr) {
     유저 영역을 벗어난 영역일 경우 프로세스 종료 (exit(-1))*/
 
     /* --- Project 2: User memory access --- */
-    if (!is_user_vaddr(addr) || addr !=NULL){
+    if (!is_user_vaddr(addr) || addr !=NULL||pml4_get_page(t->pml4, addr)== NULL){
+        /*
+         * pml4_get_page
+         * 포인터가 가리키는 주소가 유저 영역 내에 있지만 페이지로 할당하지 않은 영역일 수도 있다.
+         * 유저 가상 주소와 대응하는 물리주소를 확인해서 해당 물리 주소와 연결된 커널 가상 주소를 반환하거나 만약 해당 물리 주소가 가상 주소와 매핑되지 않은 영역이면 NULL을 반환
+        */
         exit(-1);
     }/*
     if (!(user_addr_start > addr) || !(addr > user_addr_finish)) {
