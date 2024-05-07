@@ -176,7 +176,7 @@ process_exec (void *f_name) { // 유저가 입력한 명령어를 수행하도�
      * This is because when current thread rescheduled,
      * it stores the execution information to the member. */
     struct intr_frame _if; // intr_frame 내 구조체 멤버에 필요한 정보를 담는다.
-    _if.ds = _if.es = _if.ss = SEL_UDSEG;
+    _if.ds = _if.es = _if.ss = SEL_UDSEG; //유저 메모리의 데이터, 코드 선택자로 유저 메모리에 있는 데이터, 코드 세그먼트를 가리키는 주소
     _if.cs = SEL_UCSEG;
     _if.eflags = FLAG_IF | FLAG_MBS;
 
@@ -290,11 +290,11 @@ process_wait (tid_t child_tid UNUSED) {
 /* Exit the process. This function is called by thread_exit (). */
 void
 process_exit (void) {
-	struct thread *curr = thread_current ();
-	/* TODO: Your code goes here.
-	 * TODO: Implement process termination message (see
-	 * TODO: project2/process_termination.html).
-	 * TODO: We recommend you to implement process resource cleanup here. */
+    struct thread *curr = thread_current ();
+    /* TODO: Your code goes here.
+     * TODO: Implement process termination message (see
+     * TODO: project2/process_termination.html).
+     * TODO: We recommend you to implement process resource cleanup here. */
 
 	process_cleanup ();
 }

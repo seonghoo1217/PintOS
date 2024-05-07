@@ -11,4 +11,8 @@ bool create(const char *file, unsigned initial_size);
 
 bool remove(const char *file);
 
+int write(int fd, const void *buffer, unsigned size);
+
+void putbuf(const char *buffer, size_t n);
+
 #endif /* userprog/syscall.h */

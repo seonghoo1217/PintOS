@@ -125,6 +125,9 @@ struct thread { // 이 struct thread 자체가 프로세스 디스크립터
 
     /* Owned by thread.c. */
     struct intr_frame tf;               /* Information for switching */
+    /* --- Project2: User programs - system call --- */
+    int exit_status; // _exit(), _wait() 구현 때 사용
+    /* --- Project2: User programs - system call --- */
     unsigned magic;                     /* Detects stack overflow. */
 };
 

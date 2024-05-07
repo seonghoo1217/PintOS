@@ -142,6 +142,7 @@ void halt(void){
 void exit(int status)
 {
     struct thread *t = thread_current();
+    t->exit_status = status;
     printf("%s: exit%d\n", t->name, status); // Process Termination Message
     /* 정상적으로 종료됐다면 status는 0 */
     /* status: 프로그램이 정상적으로 종료됐는지 확인 */
@@ -167,4 +168,18 @@ bool remove (const char *file) {
     } else {
         return false;
     }
+}
+
+int write (int fd, const void *buffer, unsigned size) {
+    if (fd == STDOUT_FILENO)
+        putbuf(buffer, size);
+    return size;
+}
+
+void
+putbuf (const char *buffer, size_t n) {
+    acquire_console ();
+    while (n-- > 0)
+        putchar_have_lock (*buffer++);
+    release_console ();
 }
