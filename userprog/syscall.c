@@ -8,8 +8,16 @@
 #include "threads/flags.h"
 #include "intrinsic.h"
 
+// filesys.c 불러오기 위해 추가
+#include "filesys/filesys.h"
+
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
+
+void halt(void);
+void exit(int status);
+bool create (const char *file, unsigned initial_size);
+bool remove (const char *file);
 
 /* System call.
  *
@@ -40,8 +48,53 @@ syscall_init (void) {
 /* The main system call interface */
 void
 syscall_handler (struct intr_frame *f UNUSED) {
-	// TODO: Your implementation goes here.
+	/* Project 2-3 */
+	/* 유저 스택에 저장되어 있는 시스템 콜 넘버를 가져와야함 */
+	int sys_num = f->R.rax; // rax : System call Number
+
+	/* 인자 들어오는 순서 (by 범용 레지스터 호출 규약)
+	 * 1번째 인자 : %rdi
+	 * 2번째 인자 : %rsi
+	 * 3번째 인자 : %rdx
+	 * 4번째 인자 : %r10
+	 * 5번째 인자 : %r8
+	 * 6번째 인자 : %r9
+	*/
+	switch(sys_num){
+		case SYS_HALT:
+			halt();
+			break;
+		case SYS_EXIT:
+			exit(f->R.rdi);
+			break;
+		case SYS_CREATE:
+			create(f->R.rdi, f->R.rsi);		
+		case SYS_REMOVE:
+			remove(f->R.rdi);		
+		// case SYS_FORK:
+		// 	fork(f->R.rdi);
+		// case SYS_EXEC:
+		// 	exec(f->R.rdi);
+		// case SYS_WAIT:
+		// 	wait(f->R.rdi);
+		// case SYS_OPEN:
+		// 	open(f->R.rdi);		
+		// case SYS_FILESIZE:
+		// 	filesize(f->R.rdi);
+		// case SYS_READ:
+		// 	read(f->R.rdi, f->R.rsi, f->R.rdx);
+		// case SYS_WRITE:
+		// 	write(f->R.rdi, f->R.rsi, f->R.rdx);		
+		// case SYS_SEEK:
+		// 	seek(f->R.rdi, f->R.rsi);		
+		// case SYS_TELL:
+		// 	tell(f->R.rdi);		
+		// case SYS_CLOSE:
+		// 	close(f->R.rdi);
+		
+	}
 	printf ("system call!\n");
+	printf ("%d", sys_num);
 	thread_exit ();
 }
 
@@ -60,4 +113,34 @@ void check_address(void * uaddr){
 		{
 		exit(-1);
 	}
+}
+
+/* Project 2-3 */
+/* Pintos 종료시키는 시스템 콜 */
+void halt(void){
+	power_off();
+}
+
+/* 현재 실행중인 프로세스를 종료하는 시스템 콜 */
+void exit(int status){
+	struct thread *t = thread_current();
+	t->exit_status = status;
+	printf("%s: exit %d\n", t->name, status); // 정상종료 = status : 0
+	thread_exit();
+}
+
+/* 파일을 생성하는 시스템 콜 */
+bool create (const char *file, unsigned initial_size){
+	// file : 생성할 파일의 이름 및 경로 정보
+	// initial_size : 생성할 파일의 크기
+	check_address(file);
+	// file 이름에 해당하는 file을 생성하는 함수
+	return filesys_create(file, initial_size);
+}
+
+/* 파일을 제거하는 시스템 콜 */
+bool remove (const char *file){
+	check_address(file);
+	// file 이름에 해당하는 file을 제거하는 함수
+	return filesys_remove(file);
 }
