@@ -241,7 +241,13 @@ thread_create (const char *name, int priority,
     thread unblock 후 현재 실행중인 thread와 우선순위 비교해서
     새로 생성된 thread 우선순위 높으면 thread_yield() 통해 cpu 양보
     */
-
+    t->file_descriptor_table = palloc_get_multiple(PAL_ZERO, FDT_PAGES);
+    if (t->file_descriptor_table == NULL) {
+        return TID_ERROR;
+    }
+    t->fdidx = 2; // 0은 stdin, 1은 stdout에 이미 할당
+    t->file_descriptor_table[0] = 1; // stdin 자리: 1 배정
+    t->file_descriptor_table[1] = 2; // stdout 자리: 2 배정
     return tid;
 }
 

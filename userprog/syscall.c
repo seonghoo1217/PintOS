@@ -8,6 +8,7 @@
 #include "threads/flags.h"
 #include "intrinsic.h"
 
+#include "lib/stdio.h"
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
@@ -35,6 +36,10 @@ syscall_init (void) {
 	 * mode stack. Therefore, we masked the FLAG_FL. */
 	write_msr(MSR_SYSCALL_MASK,
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
+
+    /* -------- project 2-3------------- */
+    lock_init(&filesys_lock);
+    /* -------- project 2-3------------- */
 }
 
 /* --- Project 2: system call --- */
@@ -110,10 +115,10 @@ void syscall_handler(struct intr_frame *f UNUSED)
         case SYS_CLOSE:
             close(f->R.rdi);
             break;
+        default:
+            thread_exit();
     }
     printf("system call!\n");
-
-    thread_exit();
 }
 
 void check_address(void *addr) {
@@ -171,9 +176,25 @@ bool remove (const char *file) {
 }
 
 int write (int fd, const void *buffer, unsigned size) {
-    if (fd == STDOUT_FILENO)
+    check_address(buffer);
+    struct file *fileobj = fd_to_struct_filep(fd);
+    int read_count;
+    if (fd == STDOUT_FILENO) {
         putbuf(buffer, size);
-    return size;
+        read_count = size;
+    }
+
+    else if (fd == STDIN_FILENO) {
+        return -1;
+    }
+
+    else {
+
+        lock_acquire(&filesys_lock);
+        read_count = file_write(fileobj, buffer, size);
+        lock_release(&filesys_lock);
+
+    }
 }
 
 void
@@ -182,4 +203,105 @@ putbuf (const char *buffer, size_t n) {
     while (n-- > 0)
         putchar_have_lock (*buffer++);
     release_console ();
+}
+
+int open (const char *file) {
+    check_address(file);
+    struct file *file_obj = filesys_open(file); // 열려고 하는 파일 객체 정보를 filesys_open()으로 받기
+
+    // 제대로 파일 생성됐는지 체크
+    if (file_obj == NULL) {
+        return -1;
+    }
+    int fd = add_file_to_fd_table(file_obj); // 만들어진 파일을 스레드 내 fdt 테이블에 추가
+
+    // 만약 파일을 열 수 없으면] -1을 받음
+    if (fd == -1) {
+        file_close(file_obj);
+    }
+
+    return fd;
+
+}
+
+int add_file_to_fd_table(struct file *file) {
+    struct thread *t = thread_current();
+    struct file **fdt = t->file_descriptor_table;
+    int fd = t->fdidx; //fd값은 2부터 출발
+
+    while (t->file_descriptor_table[fd] != NULL && fd < FDCOUNT_LIMIT) {
+        fd++;
+    }
+
+    if (fd >= FDCOUNT_LIMIT) {
+        return -1;
+    }
+    t->fdidx = fd;
+    fdt[fd] = file;
+    return fd;
+
+}
+
+/*  fd 값을 넣으면 해당 file을 반환하는 함수 */
+struct file *fd_to_struct_filep(int fd) {
+    if (fd < 0 || fd >= FDCOUNT_LIMIT) {
+        return NULL;
+    }
+
+    struct thread *t = thread_current();
+    struct file **fdt = t->file_descriptor_table;
+
+    struct file *file = fdt[fd];
+    return file;
+}
+
+/* file size를 반환하는 함수 */
+int filesize(int fd) {
+    struct file *fileobj = fd_to_struct_filep(fd);
+
+    if (fd < 0 || fd >= FDCOUNT_LIMIT) {
+        return;
+    }
+
+    if (fileobj == NULL) {
+        return -1;
+    }
+    file_length(fileobj);
+}
+int read(int fd, void *buffer, unsigned size) {
+    // 유효한 주소인지부터 체크
+    check_address(buffer); // 버퍼 시작 주소 체크
+    check_address(buffer + size -1); // 버퍼 끝 주소도 유저 영역 내에 있는지 체크
+    unsigned char *buf = buffer;
+    int read_count;
+
+    struct file *fileobj = fd_to_struct_filep(fd);
+
+    if (fileobj == NULL) {
+        return -1;
+    }
+
+    /* STDIN일 때: */
+    if (fd == STDIN_FILENO) {
+        char key;
+        for (int read_count = 0; read_count < size; read_count++) {
+            key  = input_getc();
+            *buf++ = key;
+            if (key == '\0') { // 엔터값
+                break;
+            }
+        }
+    }
+        /* STDOUT일 때: -1 반환 */
+    else if (fd == STDOUT_FILENO){
+        return -1;
+    }
+
+    else {
+        lock_acquire(&filesys_lock);
+        read_count = file_read(fileobj, buffer, size); // 파일 읽어들일 동안만 lock 걸어준다.
+        lock_release(&filesys_lock);
+
+    }
+    return read_count;
 }
