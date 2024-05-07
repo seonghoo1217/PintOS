@@ -305,3 +305,42 @@ int read(int fd, void *buffer, unsigned size) {
     }
     return read_count;
 }
+
+void seek(int fd, unsigned position) {
+    if (fd < 2) {
+        return;
+    }
+    struct file *file = fd_to_struct_filep(fd);
+    check_address(file);
+    if (file == NULL) {
+        return;
+    }
+    file_seek(file, position);
+}
+
+unsigned tell (int fd) {
+    if (fd <2) {
+        return;
+    }
+    struct file *file = fd_to_struct_filep(fd);
+    check_address(file);
+    if (file == NULL) {
+        return;
+    }
+    return file_tell(fd);
+}
+
+void close (int fd) {
+    if (fd < 2) {
+        return;
+    }
+    struct file *file = fd_to_struct_filep(fd);
+    check_address(file);
+    if (file == NULL) {
+        return;
+    }
+    if (fd < 0 || fd >= FDCOUNT_LIMIT) {
+        return;
+    }
+    thread_current()->file_descriptor_table[fd] = NULL;
+}

@@ -30,4 +30,10 @@ int filesize(int fd);
 
 struct lock filesys_lock;
 
+void seek(int fd, unsigned position);
+
+unsigned tell(int fd);
+
+void close(int fd);
+
 #endif /* userprog/syscall.h */
