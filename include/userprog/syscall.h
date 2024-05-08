@@ -3,37 +3,16 @@
 
 #include "userprog/process.h"
 
+/* Project 2: system call */
+
 #define    STDIN_FILENO    0
 #define    STDOUT_FILENO    1
 
+
 void syscall_init(void);
 
-void halt(void);
+void check_address(void *addr);
 
-void exit(int status);
-
-bool create(const char *file, unsigned initial_size);
-
-bool remove(const char *file);
-
-int write(int fd, const void *buffer, unsigned size);
-
-void putbuf(const char *buffer, size_t n);
-
-int open(const char *file);
-
-int add_file_to_fd_table(struct file *file);
-
-struct file *fd_to_struct_filep(int fd);
-
-int filesize(int fd);
-
-struct lock filesys_lock;
-
-void seek(int fd, unsigned position);
-
-unsigned tell(int fd);
-
-void close(int fd);
+void get_argument(void *esp, int *arg, int count);
 
 #endif /* userprog/syscall.h */
