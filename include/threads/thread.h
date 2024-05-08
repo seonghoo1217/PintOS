@@ -103,8 +103,6 @@ struct thread { // 이 struct thread 자체가 프로세스 디스크립터
     struct list donations; // multiple donation 고려하기 위해 사용: A thread가 B thread에 의해 priority가 변경됐다면 A thread의 list donations에 B 스레드를 기억해놓는다.
     struct list_elem donation_elem; // multiple donation 고려하기 위해 사용: B thread는 A thread의 기부자 목록에 자신 이름 새겨놓아야! 이를 donation_elem!
 
-
-
     /* Shared between thread.c and synch.c. & list.c도! */
     struct list_elem elem;              /* List element. */
 
@@ -116,6 +114,9 @@ struct thread { // 이 struct thread 자체가 프로세스 디스크립터
     /* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
 	/*---Project 2: Process Priority---*/
+    int exit_status;
+    struct file ** fdt; /* File Descriptor Table */
+    int next_fd;        /* Next fd index */
 
 #endif
 #ifdef VM
@@ -127,8 +128,7 @@ struct thread { // 이 struct thread 자체가 프로세스 디스크립터
     struct intr_frame tf;               /* Information for switching */
     unsigned magic;                     /* Detects stack overflow. */
 
-    /* ---Project2: User programs - system call --- */
-    int exit_status; // _exit(), _wait() 구현 때 사용
+
 };
 
 /* If false (default), use round-robin scheduler.

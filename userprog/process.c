@@ -51,7 +51,10 @@ process_create_initd (const char *file_name) {
 	strlcpy (fn_copy, file_name, PGSIZE);
 
 	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
+	/* Project 2: system call */
+	char *token, *last;
+	token = strtok_r(file_name, " ",&last);
+	tid = thread_create (token, PRI_DEFAULT, initd, fn_copy);
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
 	return tid;
@@ -168,8 +171,6 @@ process_exec (void *f_name) {
 	bool success;
 	
 	char file_name_save[128];
-
-	// file_name 의 메모리의 내용을 file_name_save에 복사하겠다.
 	memcpy(file_name_save, file_name, strlen(file_name)+1);
 
 	/* We cannot use the intr_frame in the thread structure.
@@ -186,7 +187,7 @@ process_exec (void *f_name) {
 	process_cleanup ();
 
 	/* And then load the binary */
-	success = load (file_name, &_if);
+	success = load (file_name_save, &_if);
 	// file_name : f_name 의 첫 번째 문자열
 
 
@@ -196,7 +197,7 @@ process_exec (void *f_name) {
 	if (!success)
 		return -1;
 
-	hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true);
+	// hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true);
 	/* Start switched process. */
 	do_iret (&_if);
 	NOT_REACHED ();
@@ -214,10 +215,11 @@ process_exec (void *f_name) {
  * does nothing. */
 int
 process_wait (tid_t child_tid UNUSED) {
-	while(1)
-	{
+	// while(1)
+	// {
 
-	}
+	// }
+	for(int i = 0; i < 100000000; i++);
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
@@ -232,6 +234,10 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
+	for (int i = 0; i < FDCOUNT_LIMIT; i++){
+		close(i);
+	}
+	palloc_free_multiple(curr->fdt, FDT_PAGES);
 
 	process_cleanup ();
 }
@@ -688,7 +694,7 @@ void argument_stack(char **argv, int argc, struct intr_frame *if_){ // if_ 는 �
 
 	/* 워드 정렬 : 8의 배수 맞추기 위해 패딩 넣기 */
 	while (if_->rsp %8 != 0) {
-		if_->rsp = if_->rsp - 1;
+		if_->rsp--;
 		*(uint8_t *)if_->rsp = 0; // 패딩영역에 데이터 0 삽입 -> 1바이트 = 8비트 저장
 	}
 

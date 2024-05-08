@@ -231,6 +231,16 @@ thread_create (const char *name, int priority,
     t->tf.cs = SEL_KCSEG;
     t->tf.eflags = FLAG_IF;
 
+    /* project 2-3: system call */
+    t->fdt = palloc_get_multiple(PAL_ZERO, FDT_PAGES); // fdt 공간 할당
+    if (t->fdt == NULL){
+        return TID_ERROR;
+    }
+    t->next_fd = 2;
+    t->fdt[0] = 1;
+    t->fdt[1] = 2;
+    
+
     /* Add to run queue. */
     thread_unblock (t);
     /* --- pjt 1.2 --- */
