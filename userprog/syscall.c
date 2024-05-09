@@ -11,12 +11,17 @@
 #include "threads/init.h" 		// power_off 부르기 위해 사용
 #include "filesys/filesys.h" 	// filesys.c 부르기 위해 사용
 #include "include/threads/synch.h"
+#include "filesys/file.h"
+#include "threads/synch.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 struct lock filesys_lock;
 
-
+#include "userprog/process.h"
+typedef int pid_t;
+#include "threads/palloc.h"
+#include <string.h>
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -76,12 +81,17 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		case SYS_REMOVE:
 			remove(f->R.rdi);
 			break;		
-		// case SYS_FORK:
-		// 	fork(f->R.rdi);
-		// case SYS_EXEC:
-		// 	exec(f->R.rdi);
-		// case SYS_WAIT:
-		// 	wait(f->R.rdi);
+		case SYS_FORK:
+			fork(f->R.rdi, f->R.rsi);
+			break;
+		case SYS_EXEC:
+			if (exec(f->R.rdi) == -1){
+				exit(-1);
+			}
+			break;
+		case SYS_WAIT:
+			wait(f->R.rdi);
+			break;
 		case SYS_OPEN:
 			open(f->R.rdi);		
 			break;
@@ -103,15 +113,10 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		case SYS_CLOSE:
 			close(f->R.rdi);
 			break;
-	default:
-			thread_exit();
+		default:
+			exit(-1);
 			break;
 	}
-	
-
-	// printf ("system call!\n");
-	// printf ("%d", sys_num);
-	// thread_exit ();
 }
 
 /* Project 2-2 */
@@ -149,44 +154,37 @@ void exit(int status){
 bool create (const char *file, unsigned initial_size){
 	// file : 생성할 파일의 이름 및 경로 정보
 	// initial_size : 생성할 파일의 크기
+	lock_acquire(&filesys_lock);
 	check_address(file);
 	// file 이름에 해당하는 file을 생성하는 함수
-	if (filesys_create(file, initial_size)){
-		return true;
-	}
-	else {
-		return false;
-	}
+	bool x = filesys_create(file, initial_size);
+	lock_release(&filesys_lock);
+	return x;
 }
 
 /* 파일을 제거하는 시스템 콜 */
 bool remove (const char *file){
 	check_address(file);
 	// file 이름에 해당하는 file을 제거하는 함수
-	if (filesys_remove(file)){
-		return true;
-	}
-	else {
-		return false;
-	}
+	return filesys_remove(file);
 }
 /* ---------- FD 필요한 경우 ---------- */
 
 /* fd table에 인자로 들어온 파일 객체를 저장하고 fd를 생성 */
-int fdt_add_fd(struct file *f){
+int fdt_add_fd(struct file *file){
 	struct thread *curr = thread_current();
 	struct file ** fdt = curr-> fdt;
-	int fd = curr->next_fd;
 
-	while (curr->fdt[fd] != NULL && fd < FDCOUNT_LIMIT){
-		fd++;
+	while (curr->fdt < FDCOUNT_LIMIT && fdt[curr->next_fd]){
+		curr->next_fd++;
 	}
-	if (fd >= FDCOUNT_LIMIT){
+
+	if (curr->next_fd >= FDCOUNT_LIMIT){
 		return -1;
 	}
-	curr->next_fd = fd;
-	fdt[fd] = f;
-	return fd;
+
+	fdt[curr->next_fd] = file;
+	return curr->next_fd;
 }
 
 /* fd table에서 인자로 들어온 fd를 검색하여 찾은 파일 객체를 리턴 */
@@ -195,10 +193,7 @@ static struct file * fdt_get_file(int fd){
 		return NULL;
 	}
 	struct thread *curr = thread_current();
-	struct file **fdt = curr->fdt;
-	struct file *file = fdt[fd];
-	return file;
-	// return curr->fdt[fd];
+	return curr->fdt[fd];
 }
 
 /* fd table에서 인자로 들어온 fd를 제거 */
@@ -246,42 +241,77 @@ int filesize (int fd){
 }
 
 
-int read(int fd, void *buffer, unsigned size) {
-	// 유효한 주소인지부터 체크
-	check_address(buffer); // 버퍼 시작 주소 체크
-	check_address(buffer + size -1); // 버퍼 끝 주소도 유저 영역 내에 있는지 체크
-	unsigned char *buf = buffer;
-	int read_count;
+// int read(int fd, void *buffer, unsigned size) {
+// 	// 유효한 주소인지부터 체크
+// 	check_address(buffer); // 버퍼 시작 주소 체크
+// 	unsigned char *buf = buffer;
+// 	int read_count;
 	
-	struct file *fileobj = fdt_get_file(fd);
+// 	struct file *fileobj = fdt_get_file(fd);
 
-	if (fileobj == NULL) {
-		return -1;
-	}
+// 	if (fileobj == NULL) {
+// 		return -1;
+// 	}
 
-	/* STDIN일 때: */
-	if (fd == STDIN_FILENO) {
-		char key;
-		for (int read_count = 0; read_count < size; read_count++) {
-			key  = input_getc();
-			*buf++ = key;
-			if (key == '\0') { // 엔터값
-				break;
-			}
-		}
-	}
-	/* STDOUT일 때: -1 반환 */
-	else if (fd == STDOUT_FILENO){
-		return -1;
-	}
+// 	/* STDIN일 때: */
+// 	if (fd == STDIN_FILENO) {
+// 		char key;
+// 		for (int read_count = 0; read_count < size; read_count++) {
+// 			key  = input_getc();
+// 			*buf++ = key;
+// 			if (key == '\0') { // 엔터값
+// 				break;
+// 			}
+// 		}
+// 	}
+// 	/* STDOUT일 때: -1 반환 */
+// 	else if (fd == STDOUT_FILENO){
+// 		return -1;
+// 	}
 
-	else {
-		lock_acquire(&filesys_lock);
-		read_count = file_read(fileobj, buffer, size); // 파일 읽어들일 동안만 lock 걸어준다.
-		lock_release(&filesys_lock);
+// 	else {
+// 		lock_acquire(&filesys_lock);
+// 		read_count = file_read(fileobj, buffer, size); // 파일 읽어들일 동안만 lock 걸어준다.
+// 		lock_release(&filesys_lock);
 
-	}
-	return read_count;
+// 	}
+// 	return read_count;
+// }
+
+int read(int fd, void *buffer, unsigned size)
+{
+    check_address(buffer);
+    off_t read_byte;
+    uint8_t *read_buffer = buffer;
+    if (fd == 0)
+    {
+        char key;
+        for (read_byte = 0; read_byte < size; read_byte++)
+        {
+            key = input_getc();
+            *read_buffer++ = key;
+            if (key == '\0')
+            {
+                break;
+            }
+        }
+    }
+    else if (fd == 1)
+    {
+        return -1;
+    }
+    else
+    {
+        struct file *read_file = fdt_get_file(fd);
+        if (read_file == NULL)
+        {
+            return -1;
+        }
+        lock_acquire(&filesys_lock);
+        read_byte = file_read(read_file, buffer, size);
+        lock_release(&filesys_lock);
+    }
+    return read_byte;
 }
 
 int write (int fd, const void *buffer, unsigned size) {
@@ -304,6 +334,7 @@ int write (int fd, const void *buffer, unsigned size) {
 		lock_release(&filesys_lock);
 
 	}
+	return read_count;
 }
 
 void seek (int fd, unsigned position){
@@ -335,3 +366,30 @@ void close (int fd){
 	fdt_remove_fd(fd);
 	file_close(target_file);
 }
+
+pid_t fork (const char * thread_name, struct intr_frame *f){
+	check_address(thread_name);
+	return process_fork(thread_name, f);
+}
+
+int wait (tid_t pid){
+	return process_wait(pid);
+}
+
+int exec(const char *cmd_line){
+	check_address(cmd_line);
+
+	int size = strlen(cmd_line) + 1;
+	char * fn_copy = palloc_get_page(PAL_ZERO);
+
+	if (fn_copy == NULL){
+		exit(-1);
+	}
+	strlcpy(fn_copy, cmd_line, size);
+
+	if (process_exec(fn_copy) == -1){
+		return -1;
+	}
+	return 0;
+}
+

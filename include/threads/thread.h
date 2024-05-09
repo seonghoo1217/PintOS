@@ -5,6 +5,8 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+
+#include "synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -117,6 +119,17 @@ struct thread { // 이 struct thread 자체가 프로세스 디스크립터
     int exit_status;
     struct file ** fdt; /* File Descriptor Table */
     int next_fd;        /* Next fd index */
+    
+    /* 계층 구조 구현을 위해 추가한 항목 */
+    struct intr_frame parent_if;
+    struct list child_list;
+    struct list_elem child_elem; 
+
+    struct file *running;               // 현재 실행중인 파일
+
+    struct semaphore fork_sema;         // fork 한 child의 load를 기다리는 용도      
+    struct semaphore free_sema;         
+    struct semaphore wait_sema;        
 
 #endif
 #ifdef VM

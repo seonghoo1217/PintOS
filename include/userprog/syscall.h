@@ -2,8 +2,10 @@
 #ifndef USERPROG_SYSCALL_H
 #define USERPROG_SYSCALL_H
 
-void syscall_init (void);
 
+struct lock filesys_lock;
+void syscall_init (void);
+void check_address(void * uaddr);
 void halt(void);
 void exit(int status);
 bool create (const char *file, unsigned initial_size);
@@ -16,7 +18,6 @@ int write (int fd, const void *buffer, unsigned size);
 void seek (int fd, unsigned position);
 unsigned tell (int fd);
 void close (int fd);
-// struct lock filesys_lock;
 
 
 #endif /* userprog/syscall.h */
