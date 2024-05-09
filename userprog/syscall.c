@@ -132,7 +132,7 @@ void exit(int status)
 {
     struct thread *cur = thread_current();
     cur->exit_status = status;
-//    printf("%s: exit(%d)\n", thread_name(), status);
+    printf("%s: exit(%d)\n", thread_name(), status);
     thread_exit();
 }
 
@@ -278,6 +278,7 @@ int exec(const char *file)
     /* process.c 파일의 process_create_initd 함수와 유사하다.
         이 함수에서는 새 스레드를 생성하지 않고 process_exec을 호출한다. */
     /* 커널 메모리 공간에 file의 복사본을 만든다. */
+    /* process_exec 함수 안에서 전달 받은 인자를 parsing하는 과정이 있기 때문에 복사본을 만들어서 전달해야 한다. */
     char *file_copy;
     file_copy = palloc_get_page(0);
     if (file_copy == NULL)
