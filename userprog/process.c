@@ -203,14 +203,13 @@ __do_fork(void *aux)
     }
     current->next_fd = parent->next_fd;
 
-    // 로드가 완료될 때까지 기다리고 있던 부모 대기 해제
     sema_up(&current->load_sema);
     process_init();
 
     /* Finally, switch to the newly created process. */
     if (succ)
         do_iret(&if_);
-    error:
+error:
     // 로드가 완료될 때까지 기다리고 있던 부모 대기 해제
     sema_up(&current->load_sema);
     thread_exit();
@@ -235,11 +234,11 @@ int process_exec(void *f_name)
     process_cleanup();
 
     char *ptr, *arg;
-    int arg_cnt = 0;
+    int argc = 0;
     char *arg_list[64];
 
     for (arg = strtok_r(file_name, " ", &ptr); arg != NULL; arg = strtok_r(NULL, " ", &ptr))
-        arg_list[arg_cnt++] = arg;
+        arg_list[argc++] = arg;
 
     /* And then load the binary */
     success = load(file_name, &_if);
@@ -251,8 +250,8 @@ int process_exec(void *f_name)
         return -1;
     }
 
-    argument_stack(arg_list, arg_cnt, &_if.rsp); // 함수 내부에서 parse와 rsp의 값을 직접 변경하기 위해 주소 전달
-    _if.R.rdi = arg_cnt;
+    argument_stack(arg_list, argc, &_if.rsp); // 함수 내부에서 parse와 rsp의 값을 직접 변경하기 위해 주소 전달
+    _if.R.rdi = argc;
     _if.R.rsi = (char *)_if.rsp + 8;
 
     // hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true);
@@ -284,12 +283,13 @@ int process_wait(tid_t child_tid UNUSED)
 
     // 자식이 종료될 때까지 대기한다. (process_exit에서 자식이 종료될 때 sema_up 해줄 것이다.)
     sema_down(&child->wait_sema);
+    int child_exit = child->exit_status;
     // 자식이 종료됨을 알리는 `wait_sema` signal을 받으면 현재 스레드(부모)의 자식 리스트에서 제거한다.
     list_remove(&child->child_elem);
     // 자식이 완전히 종료되고 스케줄링이 이어질 수 있도록 자식에게 signal을 보낸다.
     sema_up(&child->exit_sema);
 
-    return child->exit_status; // 자식의 exit_status를 반환한다.
+    return child_exit // 자식의 exit_status를 반환한다.
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -568,7 +568,7 @@ load(const char *file_name, struct intr_frame *if_)
 
     success = true;
 
-    done:
+done:
     /* We arrive here whether the load is successful or not. */
     // 파일을 여기서 닫지 않고 스레드가 삭제될 때 process_exit에서 닫는다.
     // file_close(file);

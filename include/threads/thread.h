@@ -96,8 +96,8 @@ struct thread
     enum thread_status status; /* Thread state. */
     char name[16];			   /* Name (for debugging purposes). */
     int priority;			   /* Priority. */
-    int64_t wakeup;			   // 깨어나야 하는 ticks 값
-    int init_priority;		   // 고유의 priority 값을 저장하는 변수
+    int64_t wakeup;
+    int init_priority;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;			/* List element. */
@@ -131,7 +131,7 @@ struct thread
     struct semaphore load_sema;
     struct semaphore exit_sema;
     struct semaphore wait_sema;
-    struct file *running; // 현재 실행중인 파일
+    struct file *running;
 };
 
 /* If false (default), use round-robin scheduler.
