@@ -280,7 +280,7 @@ int exec(const char *file)
     /* 커널 메모리 공간에 file의 복사본을 만든다. */
     /* process_exec 함수 안에서 전달 받은 인자를 parsing하는 과정이 있기 때문에 복사본을 만들어서 전달해야 한다. */
     char *file_copy;
-    file_copy = palloc_get_page(0);
+    file_copy = palloc_get_page(PAL_ZERO);
     if (file_copy == NULL)
         exit(-1);
     strlcpy(file_copy, file, PGSIZE);

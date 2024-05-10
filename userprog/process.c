@@ -47,7 +47,7 @@ tid_t process_create_initd(const char *file_name)
 
     /* Make a copy of FILE_NAME.
      * Otherwise there's a race between the caller and load(). */
-    fn_copy = palloc_get_page(0);
+    fn_copy = palloc_get_page(PAL_ZERO);
     if (fn_copy == NULL)
         return TID_ERROR;
     strlcpy(fn_copy, file_name, PGSIZE);
@@ -193,7 +193,7 @@ __do_fork(void *aux)
      * TODO:       the resources of parent.*/
 
     // FDT 복사
-    for (int i = 0; i < FDT_COUNT_LIMIT; i++)
+    for (int i = 2; i < FDT_COUNT_LIMIT; i++)
     {
         struct file *file = parent->fdt[i];
         if (file == NULL)
@@ -279,7 +279,13 @@ int process_wait(tid_t child_tid UNUSED)
     /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
      * XXX:       to add infinite loop here before
      * XXX:       implementing the process_wait. */
+
+    if (child_tid == NULL){
+        return -1;
+    }
+
     struct thread *child = get_child_process(child_tid);
+
     if (child == NULL) // 자식이 아니면 -1을 반환한다.
         return -1;
 
