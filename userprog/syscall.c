@@ -16,7 +16,7 @@
 #include "threads/palloc.h"
 
 struct lock filesys_lock;
-
+typedef int pid_t;
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
 void check_address(void *uaddr);
@@ -32,9 +32,10 @@ unsigned tell(int fd);
 void close(int fd);
 int read(int fd, void *buffer, unsigned size);
 int write(int fd, const void *buffer, unsigned size);
-tid_t fork(const char *thread_name, struct intr_frame *f);
+pid_t fork(const char *thread_name);
 int exec(const char *file);
 int wait(int pid);
+
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -76,7 +77,8 @@ void syscall_handler(struct intr_frame *f UNUSED)
             exit(f->R.rdi);
             break;
         case SYS_FORK:
-            f->R.rax = fork(f->R.rdi, f);
+            memcpy(&thread_current()->parent_if,f,sizeof(struct intr_frame));
+            f->R.rax = fork(f->R.rdi);
             break;
         case SYS_EXEC:
             f->R.rax = exec(f->R.rdi);
@@ -208,40 +210,74 @@ void close(int fd)
 
 int read(int fd, void *buffer, unsigned size)
 {
+    // check_address(buffer);
+
+    // char *ptr = (char *)buffer;
+    // int bytes_read = 0;
+
+    // lock_acquire(&filesys_lock);
+    // if (fd == STDIN_FILENO)
+    // {
+    //     for (int i = 0; i < size; i++)
+    //     {
+    //         *ptr++ = input_getc();
+    //         bytes_read++;
+    //     }
+    //     lock_release(&filesys_lock);
+    // }else if(fd == 1){//STDOUT_FILENO
+    //     return -1;
+    // }
+    // else
+    // {
+    //     if (fd < 2)
+    //     {
+
+    //         lock_release(&filesys_lock);
+    //         return -1;
+    //     }
+    //     struct file *file = process_get_file(fd);
+    //     if (file == NULL)
+    //     {
+
+    //         lock_release(&filesys_lock);
+    //         return -1;
+    //     }
+    //     bytes_read = file_read(file, buffer, size);
+    //     lock_release(&filesys_lock);
+    // }
+    // return bytes_read;
     check_address(buffer);
-
-    char *ptr = (char *)buffer;
-    int bytes_read = 0;
-
-    lock_acquire(&filesys_lock);
-    if (fd == STDIN_FILENO)
+    off_t read_byte;
+    uint8_t *read_buffer = buffer;
+    if (fd == 0) // stdin
     {
-        for (int i = 0; i < size; i++)
+        char key;
+        for (read_byte = 0; read_byte < size; read_byte++)
         {
-            *ptr++ = input_getc();
-            bytes_read++;
+            key = input_getc();
+            *read_buffer++ = key;
+            if (key == '\0')
+            {
+                break;
+            }
         }
-        lock_release(&filesys_lock);
+    }
+    else if (fd == 1) // stdout
+    {
+        return -1;
     }
     else
     {
-        if (fd < 2)
+        struct file *read_file = process_get_file(fd);
+        if (read_file == NULL)
         {
-
-            lock_release(&filesys_lock);
             return -1;
         }
-        struct file *file = process_get_file(fd);
-        if (file == NULL)
-        {
-
-            lock_release(&filesys_lock);
-            return -1;
-        }
-        bytes_read = file_read(file, buffer, size);
+        lock_acquire(&filesys_lock);
+        read_byte = file_read(read_file, buffer, size);
         lock_release(&filesys_lock);
     }
-    return bytes_read;
+    return read_byte;
 }
 
 int write(int fd, const void *buffer, unsigned size)
@@ -267,9 +303,9 @@ int write(int fd, const void *buffer, unsigned size)
     return bytes_write;
 }
 
-tid_t fork(const char *thread_name, struct intr_frame *f)
+pid_t fork(const char *thread_name)
 {
-    return process_fork(thread_name, f);
+    return process_fork(thread_name, &thread_current()->parent_if);
 }
 
 int exec(const char *file)

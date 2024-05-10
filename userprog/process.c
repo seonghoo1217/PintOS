@@ -83,7 +83,7 @@ tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED)
 {
     // 현재 스레드의 parent_if에 복제해야 하는 if를 복사한다.
     struct thread *cur = thread_current();
-    memcpy(&cur->parent_if, if_, sizeof(struct intr_frame));
+    // memcpy(&cur->parent_if, if_, sizeof(struct intr_frame));
 
     /* Clone current thread to new thread.*/
     // 현재 스레드를 fork한 new 스레드를 생성한다.
@@ -101,6 +101,7 @@ tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED)
     // 자식이 로드되다가 오류로 exit한 경우
     if (child->exit_status == TID_ERROR)
     {
+        sema_up(&child->exit_sema); //TODO문제코드 내일얘기XXX
         // 자식 프로세스의 pid가 아닌 TID_ERROR를 반환한다.
         return TID_ERROR;
     }
@@ -132,7 +133,7 @@ duplicate_pte(uint64_t *pte, void *va, void *aux)
 
     /* 3. TODO: Allocate new PAL_USER page for the child and set result to
      *    TODO: NEWPAGE. */
-    newpage = palloc_get_page(PAL_USER | PAL_ZERO);
+    newpage = palloc_get_page(PAL_USER);
     if (newpage == NULL)
         return false;
 
@@ -214,7 +215,7 @@ __do_fork(void *aux)
     error:
     // 로드가 완료될 때까지 기다리고 있던 부모 대기 해제
     sema_up(&current->load_sema);
-    exit(TID_ERROR);
+    exit(-1);
 }
 
 /* Switch the current execution context to the f_name.
@@ -237,7 +238,7 @@ int process_exec(void *f_name)
 
     char *ptr, *arg;
     int arg_cnt = 0;
-    char *arg_list[64];
+    char *arg_list[48];
 
     for (arg = strtok_r(file_name, " ", &ptr); arg != NULL; arg = strtok_r(NULL, " ", &ptr))
         arg_list[arg_cnt++] = arg;
@@ -279,13 +280,11 @@ int process_wait(tid_t child_tid UNUSED)
     /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
      * XXX:       to add infinite loop here before
      * XXX:       implementing the process_wait. */
-
     if (child_tid == NULL){
         return -1;
     }
 
     struct thread *child = get_child_process(child_tid);
-
     if (child == NULL) // 자식이 아니면 -1을 반환한다.
         return -1;
 

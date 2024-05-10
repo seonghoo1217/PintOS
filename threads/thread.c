@@ -11,6 +11,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "intrinsic.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -193,7 +194,16 @@ tid_t thread_create(const char *name, int priority,
     /* Initialize thread. */
     init_thread(t, name, priority);
     tid = t->tid = allocate_tid();
+#ifdef USERPROG
+    t->fdt = palloc_get_multiple(PAL_ZERO, FDT_PAGES);
+    if (t->fdt == NULL)
+        return TID_ERROR;
 
+    t->exit_status = 0;
+
+    // 현재 스레드의 자식으로 추가
+    list_push_back(&thread_current()->child_list, &t->child_elem);
+#endif
     /* Call the kernel_thread if it scheduled.
      * Note) rdi is 1st argument, and rsi is 2nd argument. */
     t->tf.rip = (uintptr_t)kernel_thread;
@@ -204,13 +214,6 @@ tid_t thread_create(const char *name, int priority,
     t->tf.ss = SEL_KDSEG;
     t->tf.cs = SEL_KCSEG;
     t->tf.eflags = FLAG_IF;
-
-    // 현재 스레드의 자식으로 추가
-    list_push_back(&thread_current()->child_list, &t->child_elem);
-
-    t->fdt = palloc_get_multiple(PAL_ZERO, FDT_PAGES);
-    if (t->fdt == NULL)
-        return TID_ERROR;
 
     /* Add to run queue. */
     thread_unblock(t);
