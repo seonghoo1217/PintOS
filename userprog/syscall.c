@@ -133,6 +133,11 @@ void exit(int status)
     struct thread *cur = thread_current();
     cur->exit_status = status;
     printf("%s: exit(%d)\n", thread_name(), status);
+    for (int i =2; i < 128; i++){
+        if ( thread_current()->fdt[i] != NULL){
+            close(i);
+        }
+    }
     thread_exit();
 }
 
